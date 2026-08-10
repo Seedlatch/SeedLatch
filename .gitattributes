@@ -7,3 +7,8 @@
 data/bip39-english.txt   -text
 data/SHA256SUMS          -text
 tests/fixtures/*.txt     -text
+
+# Shell scripts must keep the executable bit in the index. On Windows core.filemode
+# is false, so a local chmod never reaches the commit — CI then fails with Permission
+# denied on a script that runs fine locally. Set it with: git update-index --chmod=+x
+*.sh text eol=lf
