@@ -1,0 +1,9 @@
+# Reproducible builds require byte-identical files on every platform.
+* text=auto eol=lf
+
+# Hash-pinned data and known-answer vectors: never touch these bytes. Line-ending
+# conversion on a Windows checkout would break `sha256sum -c data/SHA256SUMS` while
+# leaving the content apparently unchanged, which is the worst kind of failure.
+data/bip39-english.txt   -text
+data/SHA256SUMS          -text
+tests/fixtures/*.txt     -text

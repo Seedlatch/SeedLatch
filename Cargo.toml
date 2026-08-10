@@ -1,0 +1,83 @@
+[package]
+name = "seedlatch"
+version = "0.0.0"
+edition = "2021"
+# No `rust-version`. The toolchain is pinned exactly in `rust-toolchain.toml`, the crate is
+# not published, so an MSRV field would be a second version statement that nothing verifies.
+license = "MIT"
+description = "Client-side structural exposure checker for Bitcoin descriptors and extended public keys"
+repository = "https://github.com/seedlatch/seedlatch"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# `miniscript` is APPROVED and returns in week 2, when the descriptor parser is written.
+# It is not declared yet because nothing references it — verified, zero occurrences in
+# src/ and tests/ — and declaring it early cost more than it bought:
+#
+#   * it pulls `secp256k1-sys`, which vendors libsecp256k1 as C and needs a clang that can
+#     emit wasm32 to build for the browser;
+#   * so `cargo build --target wasm32-unknown-unknown` failed on any host without clang;
+#   * so `src/wasm.rs` — the entire browser boundary — went three rounds unable to be
+#     compiled or linked even once, while the frontend was being written against it.
+#
+# A dependency added before its first caller buys nothing and can cost a verification
+# path. Restore this line in week 2 together with the code that uses it, and the C
+# toolchain requirement in docs/toolchain.md becomes live at the same moment.
+#
+#   miniscript = { version = "13.1.0", default-features = false, features = ["std"] }
+#
+# Named directly in CLAUDE.md ("In Rust, zeroize buffers that held input").
+# Every other dependency requires explicit approval — see CLAUDE.md invariant 6.
+zeroize = { version = "1.8", default-features = false, features = ["alloc"] }
+
+# Target-gated deliberately: the browser boundary is the only thing that needs it, and
+# native test builds should not carry it. Keeps `cargo audit` on the native path honest
+# about what the test suite actually compiles.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "=0.2.127"
+
+# wasm-opt is disabled, for two reasons that point the same way.
+#
+# Practical: the binaryen build wasm-pack 0.15 ships cannot validate the module rustc
+# 1.96 emits — it fails with "error validating input" on a module that is otherwise fine.
+# Re-enabling it means pinning a newer binaryen, which is a fourth prebuilt binary in the
+# build.
+#
+# Principled: wasm-opt is minification for WebAssembly, and this project already decided
+# not to minify the JavaScript bundle (docs/toolchain.md). The reasoning carries over —
+# every opaque optimiser between the source you can read and the artefact that ships is
+# something a reviewer has to take on trust, and the frontend is not size-sensitive. The
+# unoptimised module is around 79 KB.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[profile.release]
+# NOTE: absolute build paths are stripped by `scripts/build-wasm.sh`, not here.
+#
+# Rust embeds source locations for panic messages using the path the compiler saw, and for
+# registry crates that is an absolute path on the build machine. The shipped module
+# therefore carried the maintainer's home directory and account name — in the artefact
+# every user downloads, for a project published under a pseudonym. It is also a
+# reproducibility defect on its own: the same source built by two people produced
+# different bytes.
+#
+# `trim-paths = "all"` would belong right here and is the tidy fix, but it is not
+# stabilised in the pinned Cargo (1.96) and setting it makes the manifest fail to parse.
+# The remaining option, `--remap-path-prefix`, needs the literal local prefix — which must
+# never be written into a tracked file, since that would put the identifier in the
+# repository to keep it out of the binary. So the prefixes are computed at run time by the
+# build script, which then verifies its own output.
+#
+# Build through that script. `wasm-pack build` on its own reintroduces the leak silently:
+# it succeeds, and nothing looks wrong.
+
+# Reproducible-build friendliness: deterministic codegen order, no incremental state.
+# `panic = "abort"` is deliberately NOT set here — it would break `cargo test --release`,
+# and library code is required not to panic on user input anyway (CLAUDE.md, coding rules).
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

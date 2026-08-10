@@ -1,0 +1,25 @@
+/target
+**/*.rs.bk
+node_modules/
+dist/
+pkg/
+.env
+.env.*
+*.log
+.DS_Store
+CLAUDE.local.md
+scratch/
+
+# Editor and OS files. Not tidiness — `.vscode/settings.json` and `.idea/workspace.xml`
+# routinely contain absolute paths, which on this machine means a home directory and an
+# account name. Committing one would leak the identifier the pseudonym exists to protect.
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+Thumbs.db
+desktop.ini
+
+# Cargo.lock is deliberately NOT ignored. The spec requires reproducible builds with
+# published hashes; an unlocked dependency graph makes that impossible to verify.

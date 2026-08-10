@@ -1,0 +1,235 @@
+name: CI
+
+# The gates from CLAUDE.md, enforced. Note that green CI is not review: "reviewed" means
+# the maintainer read the full diff.
+#
+# No job names a Rust version. `rust-toolchain.toml` pins it and rustup honours that file
+# automatically, so naming it here too would just create two places to drift apart.
+# See docs/toolchain.md.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Least privilege, declared here rather than inherited from a repository setting that can
+# be changed without touching this file. Nothing in CI writes to the repository.
+#
+# This matters more than it looks: the `pull_request` trigger means anyone can open a pull
+# request from a fork and have their code execute here — `npm ci` alone runs lifecycle
+# scripts from the fork's manifest. With a read-only token and no secrets configured there
+# is nothing for that code to steal. If a secret is ever added to this repository, revisit
+# this trigger before adding it, not after.
+#
+# Third-party actions below are pinned to commit SHAs, not tags. A tag is mutable: whoever
+# controls the action repository, or anyone who compromises it, can repoint `@v4` at new
+# code that runs with this token. That is the same supply-chain reasoning the project
+# already applies to prebuilt binaries in docs/security-model.md, and leaving six actions
+# on floating tags was inconsistent with it. Version comments are for humans; bump both
+# together.
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Verify vendored data and fixtures against published hashes
+        run: |
+          (cd data && sha256sum -c SHA256SUMS)
+          (cd tests/fixtures && sha256sum -c SHA256SUMS)
+
+      - name: Refuse to build if extended private key material is committed
+        # Scope, stated honestly: this catches serialised extended private keys and
+        # nothing else. It does NOT catch mnemonics, WIF or raw hex.
+        #
+        # It cannot be widened by running our own detector over the tree, because the
+        # repository deliberately contains 24 real BIP-39 test vectors (see
+        # data/PROVENANCE.md) and every private-key fixture is shape-valid by design —
+        # the detector would fire on all of them, correctly, and the gate would be
+        # useless. Extended private keys are the one category with no legitimate presence
+        # here, which is why this checks that one and says so rather than implying more.
+        #
+        # Reports FILENAMES ONLY, never matched lines. On a public repository the Actions
+        # log is public, so a gate that prints what it found would publish the very key it
+        # exists to catch — turning a caught mistake into a disclosed one. `-l` instead of
+        # `-n`, and no fallthrough of grep's output.
+        run: |
+          hits=$(grep -rIl --exclude-dir=.git --exclude-dir=target \
+                   --exclude-dir=node_modules --exclude-dir=pkg --exclude-dir=dist \
+                   -E '\b[xyztuv]prv[1-9A-HJ-NP-Za-km-z]{50,}' . || true)
+          if [ -n "$hits" ]; then
+            echo "::error::extended private key material found in: $hits"
+            echo "Rotate anything real, then purge it from history. The matched text is"
+            echo "deliberately not printed here: this log is public."
+            exit 1
+          fi
+
+      - name: Invariant 2 — no transmission of user input
+        # Was pure convention: nothing would have caught a `fetch()` appearing in the
+        # frontend or an HTTP client entering the crate tree. The Esplora lookup is the one
+        # permitted outbound call and it does not exist yet, so any hit here today is a
+        # violation. When Esplora lands, narrow this to allow that one call site rather
+        # than deleting the gate.
+        run: |
+          hits=$(grep -rInE '\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b' web/src/ \
+                 | grep -vE '^[^:]+:[0-9]+: *([*]|//)' | cut -d: -f1-2 || true)
+          if [ -n "$hits" ]; then
+            echo "::error::network call in frontend source (invariant 2) at: $hits"
+            exit 1
+          fi
+          if cargo tree -e normal --prefix none | grep -qiE '^(reqwest|hyper|ureq|curl|isahc|surf|attohttpc)'; then
+            echo "::error::HTTP client in the dependency tree (invariant 2)"
+            exit 1
+          fi
+
+      - name: Invariant 3 — no persistence of user input
+        # Also pure convention until now. The persistence exception in CLAUDE.md allows
+        # non-input UI preferences in localStorage; when that lands it goes in a single
+        # dedicated module and this gate gets an explicit exclusion for that file, so the
+        # blanket prohibition stays enforced everywhere else.
+        run: |
+          hits=$(grep -rInE '\b(localStorage|sessionStorage|indexedDB|document\.cookie|caches)\b' web/src/ \
+                 | grep -vE '^[^:]+:[0-9]+: *([*]|//)' | cut -d: -f1-2 || true)
+          if [ -n "$hits" ]; then
+            echo "::error::persistence API in frontend source (invariant 3) at: $hits"
+            exit 1
+          fi
+
+      - name: Install the pinned toolchain
+        # `rustup show` installs whatever rust-toolchain.toml asks for, components included.
+        run: rustup show && rustc --version
+
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test
+      - run: cargo test --release
+
+      - name: Detector calibration
+        # Prints the distribution across the negative corpus rather than just a pass/fail,
+        # so a reviewer reading CI output can see how close the thresholds are running.
+        run: cargo test --release --test calibration -- --nocapture
+
+      - name: False-positive simulation
+        # A million synthetic extended public keys through the private-key detector.
+        # Ignored by default because it is slow; run here so the claimed rate stays honest.
+        run: cargo test --release --test calibration -- --ignored --nocapture
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: rustup show
+      - uses: taiki-e/install-action@e40e306b80d964fa5d3792fcbb48bf976d23dce8 # cargo-audit
+      - run: cargo audit
+
+      - name: Confirm serde is still lock-only and not compiled
+        # CLAUDE.md invariant 6. serde sits in Cargo.lock as an optional feature of the
+        # rust-bitcoin crates. If it ever enters the compiled tree that is a dependency
+        # addition and needs approval, so fail rather than absorb it.
+        run: |
+          if cargo tree -e normal --prefix none | grep -q '^serde'; then
+            echo "::error::serde entered the compiled dependency tree"
+            exit 1
+          fi
+
+  wasm:
+    # The browser build. Separate job because it needs a C toolchain the others do not.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install pinned clang
+        # secp256k1-sys vendors libsecp256k1 as C and has no pure-Rust fallback, so a
+        # clang that can emit wasm32 is a build input on equal footing with rustc.
+        # Different LLVM versions can emit different WASM from identical C.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-18 llvm-18
+          echo "CC_wasm32_unknown_unknown=clang-18" >> "$GITHUB_ENV"
+          echo "AR_wasm32_unknown_unknown=llvm-ar-18" >> "$GITHUB_ENV"
+
+      - name: Install the pinned toolchain
+        run: rustup show
+
+      - name: Record the exact toolchain versions
+        # This log is the authoritative record of what built the artefact. Deliberately not
+        # copied into docs/toolchain.md — see the note at the top of that file about
+        # versions living in exactly one place.
+        run: |
+          echo "--- rustc ---" && rustc --version
+          echo "--- clang ---" && clang-18 --version
+          echo "--- node ---"  && node --version
+
+      - name: Lint the browser boundary
+        # src/wasm.rs is cfg(target_arch = "wasm32"), so the native clippy job never
+        # compiles it and the crate-level deny(clippy::unwrap_used, ...) in lib.rs has
+        # never applied to it. Verified: zero mentions of wasm.rs in native clippy output.
+        # The one file that talks to the browser was the one file outside the lint gate.
+        run: cargo clippy --release --target wasm32-unknown-unknown --all-targets -- -D warnings
+
+      - uses: taiki-e/install-action@7f4eb899022d8fe70b20c4f3de697aa85c309026 # v2
+        with:
+          tool: wasm-pack
+
+      - name: Build the WASM module and its JS glue
+        # Through the script, never `wasm-pack` directly: it sets --remap-path-prefix so
+        # the module does not carry the builder's home directory, and then verifies its own
+        # output. A plain wasm-pack build reintroduces that leak silently — it succeeds and
+        # nothing looks wrong. The script also passes --out-dir web/pkg, which is not
+        # optional: the frontend resolves through the `#core` subpath import that points
+        # there, and wasm-pack's default ./pkg builds fine and then fails to bundle.
+        run: ./scripts/build-wasm.sh
+
+      - name: No absolute paths in any published artefact
+        # Belt and braces: the build script already checks, but this is the gate that must
+        # hold even if someone changes how the module gets built.
+        run: node scripts/check-artifact-paths.mjs web/pkg/seedlatch_bg.wasm web/pkg/seedlatch.js
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          # Read from package.json `engines.node` rather than restated here. Two places to
+          # state a version is one too many — see docs/toolchain.md.
+          node-version-file: web/package.json
+
+      - name: Install pinned frontend toolchain
+        # `npm ci` fails rather than silently updating when package.json and the lockfile
+        # disagree. `npm install` would not.
+        working-directory: web
+        run: npm ci
+
+      - name: Type check
+        # Runs after wasm-pack on purpose. The boundary types come from the generated
+        # web/pkg/seedlatch.d.ts; there is no hand-written declaration any more, because
+        # the one that existed described `CheckResult` as a plain interface when it is
+        # really a class holding a WASM allocation that must be freed. A `declare module`
+        # is believed, not checked.
+        working-directory: web
+        run: npm run typecheck
+
+      - name: Bundle
+        # A real esbuild run against real glue. Type checking alone cannot catch a module
+        # that does not resolve, so a bundle has to happen in CI — currently the guard
+        # alone, since main.ts does not exist yet. Replace with `npm run build` when it does.
+        working-directory: web
+        run: npm run smoke
+
+      - name: Sourcemap paths must stay repo-relative
+        # An absolute --outfile makes esbuild bake the builder's directory layout into
+        # `sources`, which leaks it and makes the .map differ byte-for-byte between
+        # machines — breaking reproducibility for the artefact meant to support review.
+        # `require()` would treat the .map as JavaScript and throw on the first colon;
+        # it has to be read and parsed as JSON.
+        run: |
+          node -e "
+            const fs = require('fs');
+            const m = JSON.parse(fs.readFileSync('dist/smoke.js.map', 'utf8'));
+            const bad = m.sources.filter(s => /^[A-Za-z]:|^\//.test(s) || /Users|home\//.test(s));
+            if (bad.length) { console.error('absolute paths in sourcemap:', bad); process.exit(1); }
+            console.log('sourcemap sources are repo-relative:', m.sources.join(', '));
+          "

@@ -1,0 +1,10 @@
+# One of three toolchains feeding the reproducible build. See docs/toolchain.md —
+# the published-hash claim is only as strong as the least-pinned of them.
+#
+# rustup reads this automatically, so `cargo build` uses this exact compiler whatever
+# the developer's default is.
+[toolchain]
+channel = "1.96.0"
+components = ["clippy", "rustfmt"]
+targets = ["wasm32-unknown-unknown"]
+profile = "minimal"

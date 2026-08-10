@@ -1,0 +1,26 @@
+{
+  "name": "seedlatch-web",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "description": "Frontend for the Seedlatch exposure checker. Build-time dependencies only — nothing third-party is served to the browser.",
+  "engines": {
+    "node": "24.18.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "//build": "Deliberately NOT minified, and shipped with a sourcemap. See docs/toolchain.md: the JS toolchain is prebuilt binaries, so readability is what makes injection detectable without reproducing it. Requires web/pkg from wasm-pack.",
+    "build": "esbuild src/main.ts --bundle --format=esm --target=es2022 --outfile=../dist/main.js --sourcemap",
+    "build:watch": "esbuild src/main.ts --bundle --format=esm --target=es2022 --outfile=../dist/main.js --sourcemap --watch",
+    "//smoke": "Bundles the guard alone, so CI exercises a real esbuild run against real wasm-pack glue before main.ts exists. Delete once build covers it.",
+    "smoke": "esbuild src/guard.ts --bundle --format=esm --target=es2022 --outfile=../dist/smoke.js --sourcemap"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "typescript": "7.0.2"
+  },
+  "imports": {
+    "#core": "./pkg/seedlatch.js"
+  }
+}

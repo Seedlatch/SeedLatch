@@ -1,0 +1,163 @@
+# Inputs that must NOT be flagged as secret material.
+#
+# Format: <category><TAB><text>. Lines starting with # are comments.
+#
+# The point of this file is the `questionnaire-terse` block. 108 of 153 words a wallet
+# questionnaire would plausibly use are in the BIP-39 English wordlist (71%) — it is a
+# list of ordinary English nouns and verbs, which is exactly the register these answers
+# are written in. Prose is protected by function words (`the`, `and`, `of`, `to`, `a`,
+# `is`, `in`, `my`), none of which are in the wordlist because it has no word shorter
+# than three letters. Terse note-style answers drop those function words, which is what
+# makes them the worst case for the density rule and the reason this block is the
+# largest one here.
+#
+# Adding samples here is how a reviewer attacks the thresholds. Anything added must be
+# something a real user could plausibly type.
+
+descriptor	wpkh([d34db33f/84h/0h/0h]xpub6ERApfZwUNrhLCkDtcHTcxd75RbzS1ed54G1LkBUHQVHQKqhMkhgbmJbZRkrgZw4koxb5JaHWkY4ALHY2grBGRjaDMzQLcgJvLJuZZvRcEL/0/*)#cjd0ct0v
+descriptor	sh(wpkh([00000000/49h/0h/0h]xpub661MyMwAqRbcFtXgS5sYJABqqG9YLmC4Q1Rdap9gSE8NqtwybGhePY2gZ29ESFjqJoCu1Rupje8YtGqsefD265TMg7usUDFdp6W1EGMcet8/0/*))
+descriptor	tr(xpub6ASuArnXKPbfEwhqN6e3mwBcDTgzisQN1wXN9BJcM47sSikHjJf3UFHKkNAWbWMiGj7Wf5uMash7SyYq527Hqck2AxYysAA7xmALppuCkwQ/0/*)
+address	bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq
+address	bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297
+address	1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2
+address	3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy
+
+# --- Questionnaire, terse note style. The realistic worst case. ---
+questionnaire-terse	two devices
+questionnaire-terse	three devices two vendors
+questionnaire-terse	one device no passphrase
+questionnaire-terse	passphrase yes dice no
+questionnaire-terse	two of three multisig three vendors
+questionnaire-terse	dice entropy used for main account
+questionnaire-terse	passphrase in use on second device
+questionnaire-terse	seed on metal plate in home safe
+questionnaire-terse	spare copy metal plate brother house
+questionnaire-terse	steel plate office safe second copy home
+questionnaire-terse	device one coldcard device two trezor
+questionnaire-terse	main wallet single sig no passphrase
+questionnaire-terse	key in bank deposit box
+questionnaire-terse	family member holds third key
+questionnaire-terse	wife holds spare copy office safe
+questionnaire-terse	written on paper in a book at home
+questionnaire-terse	old device from 2018 never updated
+questionnaire-terse	check balance every month
+questionnaire-terse	second copy metal plate office safe main copy home safe
+questionnaire-terse	device brand model year purchase order number
+questionnaire-terse	main account second account spare account
+questionnaire-terse	paper copy metal copy spare copy
+questionnaire-terse	home safe office safe deposit box
+questionnaire-terse	device type hardware brand model version
+questionnaire-terse	seed phrase written paper home safe
+questionnaire-terse	twelve word phrase metal plate
+questionnaire-terse	twenty four word phrase steel plate home
+questionnaire-terse	sign transfer receive check balance
+questionnaire-terse	first device second device third device
+questionnaire-terse	verify address check amount confirm transfer
+questionnaire-terse	brother sister wife family member share
+questionnaire-terse	update version firmware system software
+questionnaire-terse	move funds transfer amount total balance
+questionnaire-terse	inherit estate will lawyer family
+questionnaire-terse	print steel plate stamp punch letter
+questionnaire-terse	random dice entropy own setup
+questionnaire-terse	keep hold store home office vault
+questionnaire-terse	split share group member setup type
+questionnaire-terse	laptop phone screen system update version
+questionnaire-terse	buy purchase order device vendor brand
+questionnaire-terse	worry damage fire flood safe copy
+questionnaire-terse	old device new device spare device
+questionnaire-terse	note card plate paper letter word
+questionnaire-terse	trust vault deposit box bank safe
+questionnaire-terse	remember forget guess certain sure
+questionnaire-terse	main office home safe second copy metal plate spare
+questionnaire-terse	two devices one vendor passphrase yes dice no metal backup
+
+# --- Questionnaire, written as sentences. ---
+questionnaire-prose	I have two devices from the same vendor and I use a passphrase on both of them.
+questionnaire-prose	My seed phrase is written on a metal plate that I keep in a safe at home.
+questionnaire-prose	I bought the device new from the vendor in 2019 and I have never updated the firmware.
+questionnaire-prose	There are three devices in the multisig and two of them are from the same brand.
+questionnaire-prose	I did not use dice, I just used whatever the device generated when I set it up.
+questionnaire-prose	My brother holds a spare copy of the seed in a deposit box at his bank.
+questionnaire-prose	I keep the main copy at home and a second copy in the office safe.
+questionnaire-prose	The wallet is a single signature wallet with no passphrase and one device.
+questionnaire-prose	I am not sure whether I used a passphrase when I first set the device up.
+questionnaire-prose	I wrote the twelve words on paper and later moved them onto a steel plate.
+questionnaire-prose	Two of the three keys are held by family members and one is in a bank.
+questionnaire-prose	I want to check the balance and confirm the total amount before I move anything.
+questionnaire-prose	The device is an old model and I think it shipped some time around 2018 or 2019.
+questionnaire-prose	I use a passphrase on the main account but not on the spare account.
+questionnaire-prose	My wife holds the third key and she keeps it in the safe at her office.
+
+# --- Support-ticket style. ---
+support	I am trying to figure out whether my hardware wallet is affected by the entropy issue disclosed last week.
+support	Please review the attached account balance report and confirm the total amount before we process the final payment.
+support	Can you tell me if my device is one of the affected models and what I should do about it.
+support	I read that some devices did not generate keys properly and I want to check whether mine is one of them.
+support	My question is about whether I need to move my coins to a new wallet or whether I can keep using this one.
+
+# --- Generic English prose. ---
+prose	The quick brown fox jumps over the lazy dog while the cat sleeps near the warm fire.
+prose	It was the best of times, it was the worst of times, and nobody could tell the difference.
+prose	Please find attached the report you asked for last Tuesday along with the figures for the quarter.
+prose	The train leaves at half past six and it takes about an hour to get into the city centre.
+
+# --- Structured exports. ---
+json	{"descriptor":"wpkh([d34db33f/84h/0h/0h]xpub6ERApfZwUNrhLCkDtcHTcxd75RbzS1ed54G1LkBUHQVHQKqhMkhgbmJbZRkrgZw4koxb5JaHWkY4ALHY2grBGRjaDMzQLcgJvLJuZZvRcEL/0/*)","label":"main account cold storage savings"}
+json	{"label":"office safe second copy","policy":"two of three","devices":["one","two","three"]}
+
+# --- Deliberate near-misses: constructed, real wordlist words, below the trigger. ---
+near-miss	ability able about above absent absorb abstract
+near-miss	device secret key coin cash seed phrase
+
+# --- Realistic wallet-domain sentences. Written to be plausible, not adversarial:
+# --- recovery-sheet text, device screens, support answers, security advice. These are
+# --- what a user might actually paste into the descriptor field by mistake.
+# --- Longest run across this block is 7, against a trigger of 8. One word of margin.
+near-miss	Recovery Sheet. Write the twelve words below in order and keep this paper in a safe place.
+near-miss	Never share these words with anyone. No support agent will ever ask you for them.
+near-miss	Write each word clearly and check the spelling twice before you store the sheet.
+near-miss	Keep one copy at home and one copy in a deposit box at the bank.
+near-miss	Confirm the address on your device screen before you approve the transfer.
+near-miss	Your device is ready. Press the button on the device to continue.
+near-miss	Enter your PIN to unlock the device and then select the account you want to use.
+near-miss	If you lose your device you can restore the wallet on a new one using your recovery words.
+near-miss	We never store your keys. Everything happens on your own device, in your own browser.
+near-miss	Before you begin, make sure you have your recovery sheet and a pen within reach.
+near-miss	Do not type your recovery words into any website, including this one.
+near-miss	The device will show you a word and you write it down. Repeat until you reach the end.
+near-miss	Store the backup somewhere dry, away from heat, and separate from the device itself.
+near-miss	A passphrase adds a second secret that is not written on the recovery sheet.
+near-miss	Check that the first and last word match what you wrote on the sheet.
+near-miss	This wallet uses a single signature and one device with no passphrase in use.
+near-miss	Order a second device from a different vendor and split the backup between two places.
+near-miss	Print the address, check every character, then send a small amount as a test first.
+near-miss	Take the recovery sheet out of the safe, check the words against the device, then put it back.
+near-miss	Your recovery words are the only way to restore access if the device is lost or damaged.
+near-miss	Label the spare device clearly so nobody in the family throws it away by mistake.
+near-miss	Set up the second signer on a device from another vendor before you move any funds across.
+near-miss	When you receive coins, check the amount on the device screen and not in the browser window.
+near-miss	Keep the paper copy in the office safe and tell one family member where to find it.
+near-miss	test recovery on spare device, store metal backup separate from device, review access list
+near-miss	main wallet trezor model t, backup on steel plate in office safe, passphrase in manager
+near-miss	cold storage account opened 2019, passphrase yes, metal backup, spare copy with brother
+near-miss	savings account cold storage main
+near-miss	exchange withdrawal address, verify before send
+
+# --- Comma-separated keyword lists. Same failure class as questionnaire-terse: these
+# --- DO fire, and no threshold can stop them. `home safe, office safe, deposit box,
+# --- metal plate, paper copy, spare device` is 12 tokens, 12 wordlist words, run 12,
+# --- density 1.00 — the exact signature of a 12-word seed phrase. Measured, not asserted.
+keyword-list	check device firmware version, verify receive address on screen, confirm amount before sign
+keyword-list	spare copy with brother, main copy home safe, metal plate in office deposit box
+keyword-list	verify address, check amount, confirm fee, sign transfer, record note
+keyword-list	device brand, device model, purchase year, firmware version, backup type
+keyword-list	home safe, office safe, deposit box, metal plate, paper copy, spare device
+
+# --- Real English prose that crosses the run trigger. Found by scanning 658,092 tokens
+# --- of public-domain novels (Austen, Shelley, Melville, Doyle, Dickens): runs of >= 8
+# --- occur 1.22 times per 100,000 tokens, longest genuine run 10. These are verbatim
+# --- counterexamples to the claim that prose stays clear of the threshold. Measured,
+# --- not asserted — they are here so the claim cannot be quietly restated.
+prose-long-run	such over this round globe they either lead
+prose-long-run	will they make you happy have you any other
+prose-long-run	all right again before long all right again before long
