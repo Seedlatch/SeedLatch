@@ -214,8 +214,9 @@ jobs:
 
       - name: Bundle
         # A real esbuild run against real glue. Type checking alone cannot catch a module
-        # that does not resolve, so a bundle has to happen in CI — currently the guard
-        # alone, since main.ts does not exist yet. Replace with `npm run build` when it does.
+        # that does not resolve, so a bundle has to happen in CI — currently the whole
+        # refusal path (interstitial -> guard -> wasm-pack glue), since main.ts does not
+        # exist yet. Replace with `npm run build` when it does.
         working-directory: web
         run: npm run smoke
 
@@ -225,11 +226,45 @@ jobs:
         # machines — breaking reproducibility for the artefact meant to support review.
         # `require()` would treat the .map as JavaScript and throw on the first colon;
         # it has to be read and parsed as JSON.
+        #
+        # Every map in dist/, not one by name. A gate that checks a hardcoded filename keeps
+        # passing after the bundle is renamed or a second entry point is added — it just
+        # stops checking the new one, which is the failure mode that looks like success.
+        # Zero maps is therefore a failure too: nothing to check means the gate proved
+        # nothing, and it must not report green for that.
+        #
+        # It reports counts and filenames and never the offending path. This gate detects
+        # absolute build paths, so the thing it catches IS the maintainer's directory layout
+        # — printing it would publish the identifier into a world-readable Actions log to
+        # announce that the identifier nearly got published. CLAUDE.md invariant 7, rule 2.
         run: |
           node -e "
             const fs = require('fs');
-            const m = JSON.parse(fs.readFileSync('dist/smoke.js.map', 'utf8'));
-            const bad = m.sources.filter(s => /^[A-Za-z]:|^\//.test(s) || /Users|home\//.test(s));
-            if (bad.length) { console.error('absolute paths in sourcemap:', bad); process.exit(1); }
-            console.log('sourcemap sources are repo-relative:', m.sources.join(', '));
+            const maps = fs.readdirSync('dist').filter(f => f.endsWith('.map'));
+            if (maps.length === 0) {
+              console.error('::error::no sourcemaps in dist/ - this gate checked nothing');
+              process.exit(1);
+            }
+            let bad = 0;
+            for (const f of maps) {
+              let m;
+              try {
+                m = JSON.parse(fs.readFileSync('dist/' + f, 'utf8'));
+              } catch {
+                // An uncaught JSON.parse error prints the offending line, and a sourcemap is
+                // one long line containing every source path — so the failure handler for a
+                // truncated map would publish exactly what this gate exists to withhold.
+                console.error('::error::' + f + ' is not valid JSON; contents withheld');
+                bad += 1;
+                continue;
+              }
+              const sources = Array.isArray(m.sources) ? m.sources : [];
+              const hits = sources.filter(s => typeof s === 'string' && (/^[A-Za-z]:|^\//.test(s) || /Users|home\//.test(s)));
+              if (hits.length > 0) {
+                console.error('::error::' + f + ' has ' + hits.length + ' absolute source path(s); values withheld, reproduce with npm run smoke');
+                bad += hits.length;
+              }
+            }
+            if (bad > 0) process.exit(1);
+            console.log('checked ' + maps.length + ' sourcemap(s); all sources repo-relative');
           "
