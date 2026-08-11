@@ -104,9 +104,14 @@ construct them from wordlist entries and are labelled as constructed, not known-
 - 23 unique extended public keys, every one 111 characters, every one beginning `xpub`.
 
 Extracted from the document by matching `\bxpub[1-9A-HJ-NP-Za-km-z]{100,115}\b` and
-deduplicating, in source order. These are the reference vectors BIP-32 defines for
-derivation, so they are the right negatives for a detector that must accept public keys and
-refuse private ones.
+deduplicating, in source order. They are the right negatives for a detector that must accept
+public keys and refuse private ones — every one is shape-valid and none may be flagged.
+
+**Correction: these are not all valid keys, and an earlier version of this note implied they
+were.** The regex matched the whole document, and BIP-32's *Test vector 5* is a list of keys
+a conforming implementation must **reject**. Six of the twenty-three come from there. That
+was harmless while the only consumer was a shape-based detector, and became wrong the moment
+a decoder read the same file: see `bip32-invalid-xpubs.txt` below, which names those six.
 
 ### The extraction deliberately dropped half the vectors
 
@@ -121,6 +126,56 @@ exception for harmless ones. A repository whose stated purpose is refusing key m
 should not contain key material it happens to think is safe. The file is checked at 0
 occurrences of `prv`, and CI fails the build if a serialised extended private key appears
 anywhere in the tree.
+
+## `../tests/fixtures/slip132-pubkeys.txt`
+
+- **Standard:** SLIP-0132, *Bitcoin Test Vectors*.
+- **Upstream:** `https://raw.githubusercontent.com/satoshilabs/slips/master/slip-0132.md`
+- **Retrieved:** 2026-08-11
+- **Source document SHA-256:** `e22db297863b7e200637bd4b507cb31a5bea31a91c0398e27a6657403d8ce167`
+- **SHA-256 of this extract:** in `tests/fixtures/SHA256SUMS`, machine-checked by CI.
+- 3 extended public keys — `xpub`, `ypub` and `zpub` — one wallet at `m/44'/0'/0'`,
+  `m/49'/0'/0'` and `m/84'/0'/0'`.
+
+The only published known-answer vectors that exercise SLIP-132 decoding. They are what makes
+the `xpub`/`ypub`/`zpub` paths known-answer rather than self-consistent; the capitalised
+multisig forms and the testnet forms have no published vectors, so those are covered by
+constructed re-versioning in the unit tests and are labelled there as constructed.
+
+**The surrounding block holds `xprv`, `yprv` and `zprv` counterparts and a real BIP-39
+mnemonic**, which is why the extraction anchors on the three `pub` prefixes and then asserts
+its own output contains neither before writing. Same reason the source document is not
+vendored: see `slip132-versions.txt` above.
+
+## `../tests/fixtures/bip32-invalid-xpubs.txt`
+
+- **Standard:** BIP-32, *Test vector 5* — keys a conforming implementation must reject.
+- **Upstream:** `https://raw.githubusercontent.com/bitcoin/bips/master/bip-0032.mediawiki`
+- **Retrieved:** 2026-08-11
+- **Source document SHA-256:** `e5e00a8289db2f681052cf24a745320afc225e66b25d1e489a7c884d2fc7f11f`
+- **SHA-256 of this extract:** in `tests/fixtures/SHA256SUMS`, machine-checked by CI.
+- 6 extended public keys, each a strict subset of `bip32-xpubs.txt` — verified, all six
+  appear there verbatim.
+
+The six reasons BIP-32 gives, in file order: pubkey version / prvkey mismatch; invalid pubkey
+prefix `04`; invalid pubkey prefix `01`; zero depth with non-zero parent fingerprint; zero
+depth with non-zero index; invalid pubkey `02…07`.
+
+Matched on lines beginning `* xpub` inside the Test vector 5 section only. The same section
+lists an `xprv` counterpart for most entries; anchoring to `xpub` keeps them out by
+construction rather than by care, and the extraction asserts its output contains no `prv`
+before writing.
+
+### Two of these are the reason a check exists that a dependency does not perform
+
+`rust-bitcoin`'s `Xpub::decode` **accepts** the two zero-depth entries. Measured, not
+assumed: of the six, four are refused by the dependency and the "zero depth with non-zero
+parent fingerprint" and "zero depth with non-zero index" vectors decode without complaint.
+
+A master key has no parent and no index, so those keys contradict themselves. Depth is
+reported to the user — a master key is a different finding from an account key — so
+`src/parse/extended_key.rs` checks the rule on the wire format and refuses. Without this
+file, that gap would have been invisible.
 
 ## What is deliberately *not* hash-pinned
 
