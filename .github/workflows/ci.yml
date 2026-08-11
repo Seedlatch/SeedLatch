@@ -59,10 +59,21 @@ jobs:
         # log is public, so a gate that prints what it found would publish the very key it
         # exists to catch — turning a caught mistake into a disclosed one. `-l` instead of
         # `-n`, and no fallthrough of grep's output.
+        #
+        # Case-insensitive, and that is the fix for a real hole rather than a precaution.
+        # The pattern was `[xyztuv]prv`, lowercase only, so it did not catch Yprv, Zprv,
+        # Uprv or Vprv — the SLIP-132 multisig forms invariant 1 calls out by name as
+        # "capitalised, and easy to miss". A committed Zprv passed this gate.
+        #
+        # The trade-off of `-i` is that the base58 class stops excluding 0, O, I and l, so
+        # the pattern also matches strings that are not valid base58. That widens the match,
+        # and for a gate that refuses key material, wider is the fail-closed direction. The
+        # \b anchor still prevents it firing on a prefix appearing mid-token inside a longer
+        # base58 blob.
         run: |
           hits=$(grep -rIl --exclude-dir=.git --exclude-dir=target \
                    --exclude-dir=node_modules --exclude-dir=pkg --exclude-dir=dist \
-                   -E '\b[xyztuv]prv[1-9A-HJ-NP-Za-km-z]{50,}' . || true)
+                   -iE '\b[xyztuv]prv[1-9A-HJ-NP-Za-km-z]{50,}' . || true)
           if [ -n "$hits" ]; then
             echo "::error::extended private key material found in: $hits"
             echo "Rotate anything real, then purge it from history. The matched text is"
