@@ -172,9 +172,12 @@ drafts came from exactly this check: a headline asserting *"that doesn't look li
 descriptor"* about inputs that were valid descriptors, and a `Display` implementation
 asserting the input field had been cleared, which the library has no way to know.
 
-### 6.1 Secret-material interstitial — DRAFT, awaiting approval
+### 6.1 Secret-material interstitial
 
-**Status: not approved. Do not ship this text. Do not edit it unprompted once approved.**
+**Status: approved, and shipped. Do not edit this text unprompted.**
+
+Rendered by `web/src/interstitial.ts`, which reproduces it verbatim. If that file and this
+section ever disagree, this section is right and the file is a bug.
 
 Blocking modal. No dismiss-and-continue: the only action is to clear and start again.
 
@@ -274,7 +277,7 @@ construction, shorter than the list, and it teaches the distinction that actuall
 >
 > `[ Start over ]`
 
-#### Second variant: refused on size — DRAFT, awaiting approval
+#### Second variant: refused on size
 
 Shown when the input exceeds 100 KB. Same modal, same recovery, same no-offer rule.
 

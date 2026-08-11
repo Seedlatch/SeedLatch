@@ -13,8 +13,8 @@
     "//build": "Deliberately NOT minified, and shipped with a sourcemap. See docs/toolchain.md: the JS toolchain is prebuilt binaries, so readability is what makes injection detectable without reproducing it. Requires web/pkg from wasm-pack.",
     "build": "esbuild src/main.ts --bundle --format=esm --target=es2022 --outfile=../dist/main.js --sourcemap",
     "build:watch": "esbuild src/main.ts --bundle --format=esm --target=es2022 --outfile=../dist/main.js --sourcemap --watch",
-    "//smoke": "Bundles the guard alone, so CI exercises a real esbuild run against real wasm-pack glue before main.ts exists. Delete once build covers it.",
-    "smoke": "esbuild src/guard.ts --bundle --format=esm --target=es2022 --outfile=../dist/smoke.js --sourcemap"
+    "//smoke": "Both modules as separate entry points, NOT one importing the other. The interstitial only uses startOver from the guard, so bundling it alone tree-shakes guardField and with it the whole wasm-pack glue — the bundle got SMALLER and stopped exercising the thing this step exists to exercise. Entry-point exports are never tree-shaken, so listing both keeps the #core import live. Delete once build covers it.",
+    "smoke": "esbuild src/guard.ts src/interstitial.ts --bundle --format=esm --target=es2022 --outdir=../dist --sourcemap"
   },
   "devDependencies": {
     "esbuild": "0.28.2",
