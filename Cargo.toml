@@ -13,22 +13,23 @@ publish = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-# `miniscript` is APPROVED and returns in week 2, when the descriptor parser is written.
-# It is not declared yet because nothing references it — verified, zero occurrences in
-# src/ and tests/ — and declaring it early cost more than it bought:
+# Restored in week 2 together with its first caller, `src/parse/extended_key.rs` — which was
+# the condition the previous note set, and the reason it was removed once already. It pulls
+# `secp256k1-sys`, which vendors libsecp256k1 as C and needs a clang that can emit wasm32,
+# so the C toolchain requirement in docs/toolchain.md is now live rather than anticipated.
 #
-#   * it pulls `secp256k1-sys`, which vendors libsecp256k1 as C and needs a clang that can
-#     emit wasm32 to build for the browser;
-#   * so `cargo build --target wasm32-unknown-unknown` failed on any host without clang;
-#   * so `src/wasm.rs` — the entire browser boundary — went three rounds unable to be
-#     compiled or linked even once, while the frontend was being written against it.
+# The consequence, stated where it will be read: a host without clang can run the whole
+# native test suite and cannot build for wasm32 at all. That makes the browser boundary a
+# CI-only verification path — the same shape as the bug where a script committed without its
+# executable bit passed locally and failed in CI. Move it in small steps and check the wasm
+# job each time, rather than accumulating work that has never been compiled for its target.
 #
-# A dependency added before its first caller buys nothing and can cost a verification
-# path. Restore this line in week 2 together with the code that uses it, and the C
-# toolchain requirement in docs/toolchain.md becomes live at the same moment.
-#
-#   miniscript = { version = "13.1.0", default-features = false, features = ["std"] }
-#
+# 12 crates enter the compiled tree with this line. Exactly one is outside the rust-bitcoin
+# organisation — `arrayvec`, arriving via `hex-conservative` — and it is approved. `serde`
+# does not enter, and CI fails if it ever does. `bitcoin` is used through miniscript's own
+# re-export rather than declared separately. Verify by hand with `cargo tree -e normal`.
+miniscript = { version = "13.1.0", default-features = false, features = ["std"] }
+
 # Named directly in CLAUDE.md ("In Rust, zeroize buffers that held input").
 # Every other dependency requires explicit approval — see CLAUDE.md invariant 6.
 zeroize = { version = "1.8", default-features = false, features = ["alloc"] }
