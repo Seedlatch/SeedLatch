@@ -6,7 +6,7 @@ edition = "2021"
 # not published, so an MSRV field would be a second version statement that nothing verifies.
 license = "MIT"
 description = "Client-side structural exposure checker for Bitcoin descriptors and extended public keys"
-repository = "https://github.com/seedlatch/seedlatch"
+repository = "https://github.com/Seedlatch/SeedLatch"
 publish = false
 
 [lib]
