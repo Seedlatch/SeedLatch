@@ -19,6 +19,7 @@
 //! clear the DOM field — and to tell the user this limitation exists rather than implying
 //! a guarantee that cannot be made.
 
+pub mod descriptor;
 pub mod extended_key;
 pub mod wordlist;
 
