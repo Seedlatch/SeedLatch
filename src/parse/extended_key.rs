@@ -57,6 +57,14 @@ pub enum KeyNetwork {
 }
 
 impl KeyNetwork {
+    /// Stable machine identifier for the browser boundary. Not user-facing copy.
+    pub const fn key(self) -> &'static str {
+        match self {
+            Self::Mainnet => "mainnet",
+            Self::Testnet => "testnet",
+        }
+    }
+
     /// The `rust-bitcoin` view of the same distinction.
     pub const fn network_kind(self) -> NetworkKind {
         match self {
@@ -87,6 +95,17 @@ pub enum ScriptType {
 }
 
 impl ScriptType {
+    /// Stable machine identifier for the browser boundary. Switch on this, never on a label.
+    pub const fn key(self) -> &'static str {
+        match self {
+            Self::P2pkhOrP2sh => "p2pkh_or_p2sh",
+            Self::P2wpkhInP2sh => "p2wpkh_in_p2sh",
+            Self::P2wpkh => "p2wpkh",
+            Self::MultisigP2wshInP2sh => "multisig_p2wsh_in_p2sh",
+            Self::MultisigP2wsh => "multisig_p2wsh",
+        }
+    }
+
     /// Whether this version implies a multi-signature script.
     ///
     /// Only the capitalised forms do. This is the distinction a `Zpub` holder is relying on,
@@ -224,6 +243,21 @@ pub enum ExtendedKeyError {
     /// Well-formed base58check of the right length with a known public version, and
     /// `rust-bitcoin` still rejected the body.
     Malformed,
+}
+
+impl ExtendedKeyError {
+    /// Stable machine identifier. Distinct from [`fmt::Display`], which is reviewed copy and
+    /// changes when someone edits the wording; this must not.
+    pub const fn key(&self) -> &'static str {
+        match self {
+            Self::NotBase58 => "not_base58",
+            Self::WrongLength { .. } => "wrong_length",
+            Self::UnrecognisedVersion => "unrecognised_version",
+            Self::ExtendedPrivateKey => "extended_private_key",
+            Self::InconsistentDepth => "inconsistent_depth",
+            Self::Malformed => "malformed",
+        }
+    }
 }
 
 impl fmt::Display for ExtendedKeyError {

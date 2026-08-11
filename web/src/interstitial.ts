@@ -304,7 +304,17 @@ function renderParagraph(segments: Paragraph, emphasised = false): HTMLParagraph
  * top-layer modal in the way — a rendered node is testable, a `showModal()` call is not.
  */
 export function buildInterstitial(outcome: GuardOutcome): HTMLDialogElement | null {
-  if (outcome.kind === 'accepted') return null;
+  // `unreadable` returns null alongside `accepted`, and that is a gap rather than a
+  // decision: the input was refused, so the user needs to be told something, but the copy
+  // for that screen has not been written or reviewed. Writing it here would put unreviewed
+  // user-facing wording into the product, which §6.1 exists to prevent.
+  //
+  // What it must NOT do is fall through to one of the two screens below. Neither applies:
+  // nothing alarming was found, and nothing was too large. Showing the secret-material
+  // interstitial to someone who mistyped an xpub would tell them their key may be
+  // compromised, which is false and is exactly the alarm this product cannot afford to
+  // spend wrongly.
+  if (outcome.kind === 'accepted' || outcome.kind === 'unreadable') return null;
 
   const copy =
     outcome.kind === 'secret-material'

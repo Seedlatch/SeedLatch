@@ -59,6 +59,23 @@ impl DescriptorShape {
         }
     }
 
+    /// Stable machine identifier for the browser boundary.
+    pub const fn key(self) -> &'static str {
+        match self {
+            Self::Bare => "bare",
+            Self::Pkh => "pkh",
+            Self::Wpkh => "wpkh",
+            Self::ShWpkh => "sh_wpkh",
+            Self::Sh => "sh",
+            Self::ShWsh => "sh_wsh",
+            Self::Wsh => "wsh",
+            Self::ShSortedMulti => "sh_sortedmulti",
+            Self::WshSortedMulti => "wsh_sortedmulti",
+            Self::ShWshSortedMulti => "sh_wsh_sortedmulti",
+            Self::Tr => "tr",
+        }
+    }
+
     /// Whether this shape is one of the sorted-multi forms, for which a threshold is
     /// recoverable. General miniscript thresholds require walking the AST and are not
     /// reported yet — see [`DescriptorFacts::threshold`].
@@ -97,6 +114,21 @@ pub enum DescriptorError {
     /// Parsed, but `miniscript`'s own sanity check rejected it — unsatisfiable, or beyond
     /// consensus or standardness limits.
     Unsound,
+}
+
+impl DescriptorError {
+    /// Stable machine identifier. See [`ExtendedKeyError::key`] for why this is not
+    /// [`fmt::Display`].
+    pub const fn key(&self) -> &'static str {
+        match self {
+            Self::NotADescriptor => "not_a_descriptor",
+            Self::Slip132KeyInDescriptor => "slip132_key_in_descriptor",
+            Self::MixedNetworks => "mixed_networks",
+            Self::NoKeys => "no_keys",
+            Self::IndeterminateNetwork => "indeterminate_network",
+            Self::Unsound => "unsound",
+        }
+    }
 }
 
 impl fmt::Display for DescriptorError {

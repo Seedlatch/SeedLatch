@@ -38,7 +38,7 @@
  * phrase, sees a modal, panics, and leaves the tab open with the phrase still in the DOM.
  */
 
-import { check, type CheckResult } from '#core';
+import { analyse, type AnalysisResult } from '#core';
 
 /**
  * A category, copied out of WASM into an ordinary object.
@@ -57,18 +57,66 @@ export interface Category {
   readonly label: string;
 }
 
+/**
+ * What the input turned out to be. Facts only — no tier, no judgement.
+ *
+ * Still no value: every field here was computed from the input, and none of them is the
+ * input. `analyse` runs guard-then-parse inside WASM in one crossing, so JavaScript never
+ * holds the descriptor at all.
+ */
+export interface Facts {
+  /** `'key'` or `'descriptor'`. */
+  readonly form: string;
+  /** `'mainnet'` or `'testnet'`. */
+  readonly network: string;
+  /** Script type for a key, shape for a descriptor. */
+  readonly shape: string;
+  /** Key only: the SLIP-132 prefix as presented, case intact. */
+  readonly prefix: string;
+  /** Key only: depth in the derivation tree. 0 is a master key. */
+  readonly depth: number;
+  /**
+   * **The script type could not be determined from the input** — an `xpub` or `tpub`, which
+   * SLIP-132 records as "P2PKH or P2SH".
+   *
+   * When this is true the user must be asked, using the structured controls. Never guess:
+   * the wrong choice derives addresses they do not own, and then reports a balance that is
+   * not theirs. It is never true for a descriptor, so the question must not be shown for
+   * one — a descriptor already stated its script type, and asking would invent an ambiguity
+   * the input does not have.
+   */
+  readonly ask: boolean;
+  /** Descriptor only: the *n* of *k*-of-*n*. */
+  readonly keys: number;
+  /** Descriptor only: the *k* of *k*-of-*n*, or **0 when not recoverable**. */
+  readonly threshold: number;
+  readonly wildcards: number;
+  readonly origins: number;
+  readonly singles: number;
+}
+
 export type GuardOutcome =
-  /** No value. See the note above — that is the point. */
-  | { readonly kind: 'accepted' }
+  | { readonly kind: 'accepted'; readonly facts: Facts }
   | { readonly kind: 'secret-material'; readonly categories: readonly Category[] }
   /**
    * Refused on size, **without being examined**. There are no categories because nothing
    * was looked at, and the copy must not suggest otherwise.
    */
-  | { readonly kind: 'too-large'; readonly limit: number; readonly size: number };
+  | { readonly kind: 'too-large'; readonly limit: number; readonly size: number }
+  /**
+   * Passed the guard and then could not be read as either a descriptor or an extended key.
+   *
+   * This is **not** the secret-material interstitial and must not render as one: nothing
+   * alarming was found, the input was simply not something this tool reads. `form` says
+   * which parser it was routed to and `reason` is a stable machine key such as
+   * `not_base58` or `slip132_key_in_descriptor` — never the input.
+   *
+   * The copy for this screen is not written or approved yet. See `buildInterstitial`.
+   */
+  | { readonly kind: 'unreadable'; readonly form: string; readonly reason: string };
 
 /** Copy categories out of WASM and release the wrappers. */
-function takeCategories(result: CheckResult): Category[] {
+function takeCategories(result: AnalysisResult): Category[] {
   // Each access to `.categories` constructs a fresh array of WASM-backed wrappers, so it
   // is read exactly once and every wrapper in it is freed.
   const wrapped = result.categories;
@@ -89,10 +137,15 @@ function takeCategories(result: CheckResult): Category[] {
  * removes the branch where someone later adds an early return above it.
  */
 export function guardField(field: HTMLInputElement | HTMLTextAreaElement): GuardOutcome {
-  let result: CheckResult;
+  let result: AnalysisResult;
   try {
     // Hand off first, clear immediately after. Nothing between these two statements.
-    result = check(field.value);
+    //
+    // One call, not two. `analyse` runs the guard and the parser inside WASM and returns
+    // facts, so the accepted value never comes back across the boundary to be passed in
+    // again — which would mean two crossings and a JavaScript-held copy of the user's
+    // complete address and balance history.
+    result = analyse(field.value);
   } finally {
     // `finally`, not a following statement: if `check` throws — the WASM module failed to
     // initialise, memory ran out, anything — an exception must not leave a pasted recovery
@@ -106,8 +159,25 @@ export function guardField(field: HTMLInputElement | HTMLTextAreaElement): Guard
         return { kind: 'secret-material', categories: takeCategories(result) };
       case 'too_large':
         return { kind: 'too-large', limit: result.limit, size: result.size };
+      case 'unreadable':
+        return { kind: 'unreadable', form: result.form, reason: result.reason };
       case '':
-        return { kind: 'accepted' };
+        return {
+          kind: 'accepted',
+          facts: {
+            form: result.form,
+            network: result.network,
+            shape: result.shape,
+            prefix: result.prefix,
+            depth: result.depth,
+            ask: result.ask,
+            keys: result.keys,
+            threshold: result.threshold,
+            wildcards: result.wildcards,
+            origins: result.origins,
+            singles: result.singles,
+          },
+        };
       default:
         // `refusal` is typed `string` by the generated boundary, so this is reachable, and
         // it would be reachable even if it were narrowed — a TypeScript union is a claim
