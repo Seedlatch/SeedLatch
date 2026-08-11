@@ -58,6 +58,21 @@ Never violate. Never "temporarily" relax. If a request conflicts with one, refus
 
    1. **Grepping the source is not sufficient, and never was.** The compiler wrote an absolute build path containing the maintainer's account name into the shipped `.wasm`, with nothing of the kind anywhere in the source. A CI gate would have printed a caught private key into a public Actions log. A history rewrite left the previous identity intact in `refs/original/`, pushable by `--mirror`. **Before any push, scan the built artefacts, the CI configuration and `.git` internals as well as the tree** — `scripts/build-wasm.sh` and `scripts/check-artifact-paths.mjs` exist for the first of those; use them and do not build around them.
    2. **A gate must never print what it catches.** Any check for secrets or identifiers redacts before output. CI logs on a public repository are public, so a scanner that echoes its match converts a contained mistake into a disclosed one. Report filenames and counts, never content.
+
+      **This rule was already written here, and has since been broken twice by gates added after it.** Stating it is evidently not a mechanism, so it now comes with one. Before any gate is committed or changed, plant a positive and run it. Three things must be *observed*, not assumed:
+
+      - **it fails.** A gate that cannot fail is decoration, and it is indistinguishable from a working one on every green run.
+      - **it names only the file.** No matched value, no offending line, no surrounding context.
+      - **it fails when there is nothing to check.** Zero inputs means the gate proved nothing and must not report green. A gate keyed to a specific filename quietly stops checking the moment that file is renamed or a second one appears beside it.
+
+      Plant **one positive per variant the invariant names**, not one overall. The committed-private-key gate matched `xprv` and missed `Zprv`, `Yprv`, `Uprv` and `Vprv` from the day it was written, on a repository whose first invariant names those four explicitly; a single lowercase sample would have looked like proof that it worked.
+
+      Two escape routes for the value, both found in gates that were already shipped here:
+
+      - **interpolated into the failure message** — the obvious one, and still the one that happened;
+      - **an uncaught exception.** `JSON.parse` prints the offending line when it throws, and a sourcemap is one long line containing every source path — so the error handler for a truncated file would have published precisely what the gate exists to withhold. Wrap the parse and report the filename.
+
+      A gate that looks for paths, keys or identifiers is by definition holding the thing it is looking for. Treat every code path that can print as printing publicly, including the ones that only run when something has already gone wrong.
    3. **If a fact is needed from the business notes, ask for that fact.** Never quote them, never reproduce them, never create `docs/master.md`.
 
    ### Before any push, and before any change to CI or the build
