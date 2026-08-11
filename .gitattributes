@@ -4,9 +4,10 @@
 # Hash-pinned data and known-answer vectors: never touch these bytes. Line-ending
 # conversion on a Windows checkout would break `sha256sum -c data/SHA256SUMS` while
 # leaving the content apparently unchanged, which is the worst kind of failure.
-data/bip39-english.txt   -text
-data/SHA256SUMS          -text
-tests/fixtures/*.txt     -text
+data/bip39-english.txt     -text
+data/slip132-versions.txt  -text
+data/SHA256SUMS            -text
+tests/fixtures/*.txt       -text
 
 # Shell scripts must keep the executable bit in the index. On Windows core.filemode
 # is false, so a local chmod never reaches the commit — CI then fails with Permission

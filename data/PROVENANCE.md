@@ -33,6 +33,51 @@ Plus two observable constraints: all words are `[a-z]+`, and lengths run 3–8.
 A corrupted, truncated, or substituted list fails at least one of these even if someone
 updated the recorded hash to match.
 
+## `slip132-versions.txt`
+
+- **Standard:** SLIP-0132, *Registered HD version bytes for BIP-0032*.
+- **Upstream:** `https://raw.githubusercontent.com/satoshilabs/slips/master/slip-0132.md`
+- **Retrieved:** 2026-08-11
+- **Source document SHA-256:** `e22db297863b7e200637bd4b507cb31a5bea31a91c0398e27a6657403d8ce167`
+- **SHA-256 of this extract:** in `data/SHA256SUMS`, which is the file CI checks.
+- 10 rows: 5 Bitcoin, 5 Bitcoin Testnet. 10 distinct public version bytes, 10 distinct
+  private, no value appearing in both columns.
+
+Rows whose first column is exactly `Bitcoin` or `Bitcoin Testnet`, copied verbatim with the
+table header. Exact match, not a prefix match, so a future `Bitcoin Cash`-style row cannot
+be absorbed silently.
+
+The source document hash is recorded here because — unusually for this directory — the
+source is **not** vendored, so `SHA256SUMS` cannot pin it. It states which revision of a
+living registry these rows were read from. Other coins are appended to that registry over
+time; the Bitcoin rows are stable, so re-verification means fetching the document and
+confirming these ten rows still appear in it unchanged.
+
+### Why the document itself is not committed
+
+It contains serialised `xprv`, `yprv` and `zprv` test vectors and a real BIP-39 mnemonic, in
+its *Bitcoin Test Vectors* section. Invariant 1 says never store an extended private key and
+carves out no exception for published ones, and the CI gate that enforces it would refuse
+the build — correctly. Only the registry rows are extracted, and they carry version
+**bytes**: four-byte constants, never a key. The extraction asserts its own output contains
+nothing matching a serialised extended private key before writing anything to disk.
+
+### These version bytes do not identify the coin
+
+Fifteen non-Bitcoin rows in the same registry share Bitcoin's public version bytes.
+Groestlcoin duplicates **all ten** exactly; Vertcoin, Syscoin, Nexa Testnet and Kylacoin
+Testnet each collide with at least one.
+
+One collision disagrees about more than the coin. `0x045f1cf6` is Bitcoin Testnet `vpub`,
+whose address encoding is **P2WPKH** — and Kylacoin Testnet `vpub`, whose encoding is
+**P2PKH or P2SH**. The same four bytes, a different script type.
+
+So this table is read as *"interpreted as Bitcoin, these bytes mean this"*, which is what the
+tool is for, rather than as an identification of the chain. A Groestlcoin `xpub` is
+byte-identical to a Bitcoin one and cannot be distinguished from it here or anywhere else.
+A prefix outside this table — Litecoin's `Ltub`, Lyncoin's `Lpub`, Polis's `ppub` — is not
+recognised and is refused rather than guessed at.
+
 ## `../tests/fixtures/bip39-english-mnemonics.txt`
 
 - **Upstream:** `https://raw.githubusercontent.com/trezor/python-mnemonic/master/vectors.json`,
