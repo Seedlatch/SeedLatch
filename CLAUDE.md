@@ -45,7 +45,13 @@ Never violate. Never "temporarily" relax. If a request conflicts with one, refus
 
    Excluded always, whatever the justification:
 
-   - **Personal identifiers** — real names, email addresses, usernames, filesystem paths, machine names, timezones, working patterns. Timezone is not rhetorical: a commit records the committer's UTC offset, so **every commit is made with `TZ=UTC` exported**, and the whole history has been normalised to `+0000`. Check with `git log --format='%ai %ci' | awk '$3!="+0000" || $6!="+0000"'` — it must return nothing. A single commit made without it reintroduces the fingerprint the rest of the history no longer carries.
+   - **Personal identifiers** — real names, email addresses, usernames, filesystem paths, machine names, timezones, working patterns. Timezone is not rhetorical: a commit records the committer's UTC offset, so **every commit is made with `TZ=UTC` exported**, and the whole history has been normalised to `+0000`. A single commit made without it reintroduces the fingerprint the rest of the history no longer carries — and because the rest is normalised, it is a clean data point rather than one reading among many.
+
+     **`TZ=UTC` reaches only commits made from a local shell.** That gap is not hypothetical: a commit entered this history through GitHub's web editor, which stamps the browser's timezone and never touches an environment variable. Anything committed on github.com does this — *Edit this file*, the merge button, a suggestion accepted in review. **Do not edit tracked files through the web UI.** The times it is tempting are exactly the times nobody is thinking about timezones.
+
+     This is now **checked rather than remembered**: the `test` job fails on any commit whose author or committer offset is not `+0000`, with one recorded exception, and needs `fetch-depth: 0` because a shallow clone would hand it one commit and pass. It reports SHAs and never offsets — the offset is the identifier, and a public log would publish it to announce that it nearly got published.
+
+     Verify by hand with `git log --format='%ai %ci' | awk '$3!="+0000" || $6!="+0000"'`, which must return nothing except that exception. Note the field positions: adding `%h` shifts them and the check silently passes everything, which has already happened once.
    - **Circumstances** — jurisdiction, legal questions, regulatory exposure, employment, availability, or anything about the maintainer's situation.
    - **Commercials** — pricing, revenue, business terms, market positioning, commercial rationale, conversion or persuasion language.
    - **Secrets** — credentials, tokens, keys, endpoints, or anything from a `.env`.

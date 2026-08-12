@@ -38,6 +38,50 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Full history, because the timezone gate below reads every commit. The default
+          # shallow clone would hand it a single commit, which it would check and pass — a
+          # gate that silently stops covering what it claims to cover.
+          fetch-depth: 0
+
+      - name: Every commit is UTC (invariant 7)
+        # A commit records the committer's UTC offset, which is a location. The rest of the
+        # history is normalised to +0000, so a single local-time commit is a clean data point
+        # rather than noise in a crowd.
+        #
+        # This existed only as "remember to export TZ=UTC", and that is not a mechanism: it
+        # cannot reach a commit made through GitHub's web editor, which stamps the browser's
+        # timezone and never touches a shell. That is exactly how the one allowed exception
+        # below got in. Third time on this repository that a stated rule failed where a check
+        # would have held.
+        #
+        # Reports SHAs and never the offsets. The offset IS the identifier this gate exists
+        # to catch, and a public Actions log would publish it to announce that it nearly got
+        # published. Invariant 7, rule 2.
+        run: |
+          # Known exception, deliberately kept: made through the web UI, and rewriting it
+          # would not remove it — GitHub serves orphaned commits by SHA indefinitely, so a
+          # force-push would cost the disruption without reducing the exposure.
+          allow="c6df11ab3e3e5683a5901de3fcb3f99c980cf228"
+
+          seen=$(git log --format='%H' | wc -l)
+          if [ "$seen" -lt 2 ]; then
+            echo "::error::only $seen commit(s) visible - this gate checked almost nothing"
+            exit 1
+          fi
+
+          bad=$(git log --format='%H %ai %ci' \
+                | awk '$4!="+0000" || $7!="+0000" {print $1}' \
+                | grep -vF "$allow" || true)
+
+          if [ -n "$bad" ]; then
+            echo "::error::commit(s) not made in UTC: $bad"
+            echo "Offsets are deliberately not printed: the offset is the identifier."
+            echo "Recommit with TZ=UTC exported. Note that the GitHub web editor cannot"
+            echo "do this - commits that must stay UTC have to be made from a shell."
+            exit 1
+          fi
+          echo "checked $seen commits; all UTC apart from the one recorded exception"
 
       - name: Verify vendored data and fixtures against published hashes
         run: |
