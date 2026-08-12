@@ -41,7 +41,7 @@ use zeroize::Zeroizing;
 // second direct dependency. `bitcoin` is already in the tree either way; declaring it again
 // would add a version number to keep in step with miniscript's for no benefit. `base58` is
 // reachable the same way — `bitcoin` re-exports the `base58ck` crate under that name.
-use miniscript::bitcoin::{base58, bip32::Xpub, NetworkKind};
+use miniscript::bitcoin::{base58, bip32::Xpub, Network, NetworkKind};
 
 use super::AcceptedInput;
 
@@ -62,6 +62,18 @@ impl KeyNetwork {
         match self {
             Self::Mainnet => "mainnet",
             Self::Testnet => "testnet",
+        }
+    }
+
+    /// The network to encode addresses for.
+    ///
+    /// `Testnet` rather than signet or regtest: SLIP-132 does not distinguish them, and
+    /// testnet and signet share address prefixes anyway, so claiming one specifically would
+    /// be inventing a distinction the input does not carry.
+    pub const fn network(self) -> Network {
+        match self {
+            Self::Mainnet => Network::Bitcoin,
+            Self::Testnet => Network::Testnet,
         }
     }
 

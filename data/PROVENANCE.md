@@ -147,6 +147,31 @@ mnemonic**, which is why the extraction anchors on the three `pub` prefixes and 
 its own output contains neither before writing. Same reason the source document is not
 vendored: see `slip132-versions.txt` above.
 
+## `../tests/fixtures/slip132-first-addresses.txt`
+
+- **Standard:** SLIP-0132, *Bitcoin Test Vectors*.
+- **Upstream:** `https://raw.githubusercontent.com/satoshilabs/slips/master/slip-0132.md`
+- **Retrieved:** 2026-08-12
+- **Source document SHA-256:** `e22db297863b7e200637bd4b507cb31a5bea31a91c0398e27a6657403d8ce167`
+- **SHA-256 of this extract:** in `tests/fixtures/SHA256SUMS`, machine-checked by CI.
+- 3 rows, `path address`, in the same order as `slip132-pubkeys.txt`: `m/44'/0'/0'/0/0`,
+  `m/49'/0'/0'/0/0` and `m/84'/0'/0'/0/0`.
+
+These make address derivation a **known-answer** test rather than a self-consistency one. A
+derivation test that compares our output against our own output proves determinism and
+nothing else; these are third-party published values for legacy, nested segwit and native
+segwit, and `tests/derive.rs` reproduces all three exactly.
+
+Each address is the line following a `m/… address:` marker. Extracted from the same block
+that holds `xprv`/`yprv`/`zprv` keys and a real BIP-39 mnemonic, so the extraction asserts
+its output contains neither before writing — the same guard as the other two extracts from
+this document.
+
+The path is kept alongside the address because it carries information the key does not: an
+`xpub` is ambiguous between script types, and `m/44'` is what says this one is P2PKH. The
+test reads the script type from the path rather than from the key, which is the same
+division of labour the product uses — the key cannot say, so something else must.
+
 ## `../tests/fixtures/bip32-invalid-xpubs.txt`
 
 - **Standard:** BIP-32, *Test vector 5* — keys a conforming implementation must reject.
