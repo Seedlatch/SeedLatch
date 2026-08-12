@@ -25,10 +25,6 @@ quietly start later.
 v0 makes **no vendor-specific claim**. It will not say your device or firmware is affected.
 
 ## Non-negotiables
-
-These are enforced by the code and by the tests, not by good intentions. Full text in
-[`CLAUDE.md`](CLAUDE.md); reasoning in [`docs/security-model.md`](docs/security-model.md).
-
 1. **No secret material.** Recovery phrases, WIF keys, hex private keys and extended
    private keys are detected and refused before anything else happens — including when
    nested inside an otherwise-valid descriptor.
