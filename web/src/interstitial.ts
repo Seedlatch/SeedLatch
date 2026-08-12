@@ -276,6 +276,83 @@ function tooLargeCopy(limit: number, size: number): InterstitialCopy {
   };
 }
 
+/**
+ * The one refusal reason that needs a way forward the generic copy cannot give — §6.1.
+ *
+ * Keyed on the stable `reason` identifier from the boundary, never on the message: the
+ * message is reviewed copy and changes when someone edits the wording.
+ *
+ * Without this, `wpkh(zpub…)` is a dead end. The user pasted a real wallet, is told it could
+ * not be read, and has no way to know that the same wallet is accepted in another form.
+ */
+const REASON_NOTES: Readonly<Record<string, Paragraph>> = {
+  slip132_key_in_descriptor: [
+    t('Descriptors have to use the '),
+    c('xpub'),
+    t(' or '),
+    c('tpub'),
+    t(" form of a key. If it's a single-key wallet, paste the "),
+    c('zpub'),
+    t(' on its own instead — this tool reads that.'),
+  ],
+};
+
+/**
+ * Copy for an input that passed the guard and then could not be read. `docs/spec.md` §6.1.
+ *
+ * **This one does not hedge, and carries no alarm.** A parser ran and it failed, which is
+ * arithmetic rather than judgement — hence *isn't*, not *doesn't look like*. And nothing
+ * alarming was found, so nothing here mentions compromise or tells anyone to move their
+ * coins. Saying that to someone who mistyped an extended key would be false, and would spend
+ * the alarm the secret-material screen depends on.
+ *
+ * Deliberately the shortest of the three. The other two are long because they carry urgency
+ * or a refusal that needs explaining; matching their length here would flatten the
+ * difference and teach a reader to skim all three.
+ */
+function unreadableCopy(reason: string): InterstitialCopy {
+  return {
+    heading: "We couldn't read that",
+    // The note belongs to the first paragraph's claim, so it renders directly after it.
+    note: REASON_NOTES[reason] ?? null,
+    paragraphs: [
+      [
+        t("What you pasted isn't a descriptor, and isn't an extended public key. That is "),
+        t('the only thing we checked it for: it '),
+        t("wasn't parsed as a wallet, no addresses were worked out, no balances looked up. "),
+        t('Nothing sent, nothing saved, nothing written to a log.'),
+      ],
+      // The browser-memory limitation appears here too. The moment the copy says the box is
+      // cleared it invites the same generalisation the secret-material screen was rewritten
+      // to avoid — a reader takes "cleared" to mean nothing remains anywhere. CLAUDE.md
+      // requires the limitation be stated rather than implied away, and that requirement
+      // does not weaken because this screen is calmer.
+      [
+        b('Nothing left your device.'),
+        t(" We've cleared the box. Your browser may still be holding a copy until it "),
+        t('decides to let go, and no web page can force that — Start over reloads this '),
+        t('page, which gives it the best chance to.'),
+      ],
+      [
+        b('What this tool reads.'),
+        t(' A descriptor — '),
+        c('wpkh(…)'),
+        t(', '),
+        c('sh(wpkh(…))'),
+        t(', '),
+        c('wsh(sortedmulti(…))'),
+        t(' and the like. Or an extended public key: any of the '),
+        c('pub'),
+        t(' forms, including the capitalised '),
+        c('Ypub'),
+        t(' and '),
+        c('Zpub'),
+        t(' that multisig wallets use.'),
+      ],
+    ],
+  };
+}
+
 function renderParagraph(segments: Paragraph, emphasised = false): HTMLParagraphElement {
   const paragraph = document.createElement('p');
   const host: HTMLElement = emphasised ? document.createElement('em') : paragraph;
@@ -304,22 +381,30 @@ function renderParagraph(segments: Paragraph, emphasised = false): HTMLParagraph
  * top-layer modal in the way — a rendered node is testable, a `showModal()` call is not.
  */
 export function buildInterstitial(outcome: GuardOutcome): HTMLDialogElement | null {
-  // `unreadable` returns null alongside `accepted`, and that is a gap rather than a
-  // decision: the input was refused, so the user needs to be told something, but the copy
-  // for that screen has not been written or reviewed. Writing it here would put unreviewed
-  // user-facing wording into the product, which §6.1 exists to prevent.
-  //
-  // What it must NOT do is fall through to one of the two screens below. Neither applies:
-  // nothing alarming was found, and nothing was too large. Showing the secret-material
-  // interstitial to someone who mistyped an xpub would tell them their key may be
-  // compromised, which is false and is exactly the alarm this product cannot afford to
-  // spend wrongly.
-  if (outcome.kind === 'accepted' || outcome.kind === 'unreadable') return null;
+  // Only an accepted input has no interstitial. Every refusal gets a screen, and each gets
+  // its own: the three say different things and must never substitute for one another.
+  // Showing the secret-material screen to someone who mistyped an xpub would tell them their
+  // key may be compromised, which is false, and would spend the alarm that screen depends on.
+  if (outcome.kind === 'accepted') return null;
 
-  const copy =
-    outcome.kind === 'secret-material'
-      ? secretMaterialCopy(outcome.categories)
-      : tooLargeCopy(outcome.limit, outcome.size);
+  let copy: InterstitialCopy;
+  switch (outcome.kind) {
+    case 'secret-material':
+      copy = secretMaterialCopy(outcome.categories);
+      break;
+    case 'too-large':
+      copy = tooLargeCopy(outcome.limit, outcome.size);
+      break;
+    case 'unreadable':
+      copy = unreadableCopy(outcome.reason);
+      break;
+    default:
+      // Unreachable while the union is exhaustive, and deliberately still here: a TypeScript
+      // union is a claim about the runtime, not an enforcement of it. Without this arm a
+      // future variant would leave `copy` unassigned. Falling back to the strictest screen
+      // is wrong in the other direction, so this refuses to render rather than guess.
+      return null;
+  }
 
   const dialog = document.createElement('dialog');
   dialog.className = 'interstitial';

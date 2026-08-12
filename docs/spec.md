@@ -313,6 +313,88 @@ their seed gets no secret-material warning, because none was computed. Saying so
 the only honest option; the alternative is a silence they would reasonably read as "it was
 fine". See `guard_input` in `src/parse/mod.rs`.
 
+#### Third variant: could not be read
+
+Shown when the input passed the guard and then parsed as neither a descriptor nor an
+extended public key. Same modal, same recovery, same no-offer rule.
+
+**This one does not hedge either, for the same reason as the size variant.** A parser ran
+and it failed. That is arithmetic, not judgement, so the copy says *isn't* rather than
+*doesn't look like*.
+
+**Nothing here suggests a secret was involved** — no alarm language, no compromise, no
+*treat it as exposed*. Nothing alarming was found; the input was simply not something this
+tool reads. Telling someone who mistyped an extended key that their wallet may be
+compromised would be false, and it would spend the alarm the first variant depends on.
+
+It is deliberately the shortest of the three. The other two are long because they carry
+urgency, or a refusal that needs explaining. Matching their length here would flatten the
+difference and teach a reader to skim all three.
+
+> ### We couldn't read that
+>
+> What you pasted isn't a descriptor, and isn't an extended public key. That is the only
+> thing we checked it for: it wasn't parsed as a wallet, no addresses were worked out, no
+> balances looked up. Nothing sent, nothing saved, nothing written to a log.
+>
+> **Nothing left your device.** We've cleared the box. Your browser may still be holding a
+> copy until it decides to let go, and no web page can force that — Start over reloads this
+> page, which gives it the best chance to.
+>
+> **What this tool reads.** A descriptor — `wpkh(…)`, `sh(wpkh(…))`, `wsh(sortedmulti(…))`
+> and the like. Or an extended public key: any of the `pub` forms, including the capitalised
+> `Ypub` and `Zpub` that multisig wallets use.
+>
+> `[ Start over ]`
+
+The browser-memory limitation appears here too, and that is not padding. The moment the
+copy says *we've cleared the box* it invites the same generalisation the first variant was
+rewritten to avoid: a reader takes "cleared" to mean nothing remains anywhere. `CLAUDE.md`
+requires that limitation be stated rather than implied away, and the requirement does not
+weaken because this screen is calmer.
+
+An earlier draft named where descriptors are usually found in wallet software. It was cut:
+menu labels differ between wallets and change between releases, so it is a specific claim
+about third-party software that would be wrong the moment one of them renames something.
+
+#### `{reason note}` — one refusal needs a way forward the generic copy can't give
+
+Empty for every reason except one. Omit the line entirely when empty. Same mechanism as
+`{category note}`, and it exists for the same reason: a refusal that leaves a user holding a
+real wallet with nowhere to go is a dead end, not an answer.
+
+| reason | note |
+|---|---|
+| `slip132_key_in_descriptor` | *Descriptors have to use the `xpub` or `tpub` form of a key. If it's a single-key wallet, paste the `zpub` on its own instead — this tool reads that.* |
+
+**The conditional is load-bearing.** For a single-key `wpkh(zpub…)` the bare `zpub` is
+exactly equivalent — same key material, same script type, and this tool accepts it. For a
+multisig descriptor it is not, and telling someone to paste one `Zpub` out of three would be
+wrong. So the note offers the alternative where it holds and does not claim it elsewhere.
+
+#### Why a SLIP-132 key inside a descriptor is refused rather than rewritten
+
+**Decided deliberately. Do not reopen this as an obvious usability win.**
+
+The tool already holds an unambiguous mapping from SLIP-132 version bytes to BIP-32 ones
+(`src/parse/extended_key.rs`), so it could rewrite `wpkh(zpub…)` into the descriptor BIP-380
+allows and parse that. It does not, and the mapping being unambiguous is what makes this a
+judgement call rather than a limitation — which is why it is written down here.
+
+BIP-380 defines what a descriptor is, and tools vary in how strictly they enforce it. A
+permissive parser means our reading of an input can disagree with a strict tool's, and the
+user has no way to tell which is right. That is a bad position to put someone in when the
+subject is where their coins are.
+
+It would also break the report. The report would have to describe a descriptor that does not
+exist as written — either explaining the rewrite, which is noise about our own internals at
+the moment the user is trying to understand their wallet, or asserting something untrue about
+what they gave us. This tool's whole argument is that it does not assert what it cannot
+support, and quietly reinterpreting the input contradicts that more than a refusal does.
+
+The `{reason note}` above solves the real dead end — the single-key case, which is the common
+one — without diverging from the standard.
+
 #### `{category}` substitutions
 
 Rendered from `SecretMaterial::label()` in `src/parse/mod.rs`. Multiple categories join
