@@ -69,6 +69,13 @@ export function passphraseCountsAsMitigation(answer: PassphraseAnswer): boolean 
     case 'no':
     case 'unsure':
       return false;
+    default:
+      // The value arrives from a DOM control, so the union is a claim about the runtime
+      // rather than an enforcement of it — the same reasoning as the default arm in
+      // `guardField`. Without this the function returns `undefined` on an unexpected value,
+      // which happens to be falsy and so happens to land on the safe side. Safety by
+      // accident is not safety: it survives only until someone inverts the caller's test.
+      return false;
   }
 }
 
