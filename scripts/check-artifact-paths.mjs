@@ -12,6 +12,7 @@
 // Usage: node scripts/check-artifact-paths.mjs <file>...
 
 import { readFileSync } from 'node:fs';
+import { relative, isAbsolute, basename } from 'node:path';
 
 const PATTERNS = [
   [/[A-Za-z]:[\\/]{1,2}(Users|Documents|home)/i, 'Windows absolute path'],
@@ -38,6 +39,20 @@ function printableRuns(buffer) {
   return runs;
 }
 
+/**
+ * How a file is named in output.
+ *
+ * Relative inside the tree, bare name outside it. Relativising alone is not enough: a file
+ * outside the tree relativises to something carrying the account name and directory layout,
+ * so a gate that redacts the match and then prints an identifier in the file name has moved
+ * the leak rather than removed it. CI passes tree-relative paths, so this matters for local
+ * runs — which is exactly when someone is checking a build directory before publishing.
+ */
+function shown(file) {
+  const rel = isAbsolute(file) ? relative(process.cwd(), file) : file;
+  return rel.startsWith('..') ? basename(rel) : rel;
+}
+
 const files = process.argv.slice(2);
 if (files.length === 0) {
   console.error('usage: check-artifact-paths.mjs <file>...');
@@ -51,7 +66,7 @@ for (const file of files) {
   try {
     buffer = readFileSync(file);
   } catch {
-    console.error(`  MISSING  ${file} — build it before checking`);
+    console.error(`  MISSING  ${shown(file)} — build it before checking`);
     failures += 1;
     continue;
   }
@@ -67,12 +82,12 @@ for (const file of files) {
   }
 
   if (hits.length === 0) {
-    console.log(`  clean    ${file} (${buffer.length} bytes)`);
+    console.log(`  clean    ${shown(file)} (${buffer.length} bytes)`);
     continue;
   }
 
   failures += 1;
-  console.error(`  LEAK     ${file} — ${hits.length} absolute path(s)`);
+  console.error(`  LEAK     ${shown(file)} — ${hits.length} absolute path(s)`);
   // Print the shape and a redacted excerpt. The whole point is not to reprint the
   // identifier into a CI log, which is as public as the artefact.
   for (const { label, run } of hits.slice(0, 10)) {

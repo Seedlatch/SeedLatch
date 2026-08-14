@@ -19,9 +19,13 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cargo_home="${CARGO_HOME:-$HOME/.cargo}"
 
 # rustc records paths in the platform's native form. Under Git Bash the shell reports
-# POSIX paths (/c/Users/...) while rustc emits Windows ones (C:\Users\...), so a POSIX
-# prefix would silently fail to match and the remap would quietly do nothing — the worst
-# outcome, because the build still succeeds and the leak is still there.
+# slash-separated POSIX paths while rustc emits the native Windows form, drive letter and
+# backslashes, so a POSIX prefix would silently fail to match and the remap would quietly do
+# nothing — the worst outcome, because the build still succeeds and the leak is still there.
+#
+# The two forms are described rather than written out. scripts/check-identifiers.mjs treats
+# a drive letter followed by a separator as an identifier wherever it appears, and a comment
+# is not worth an exception in a gate whose value is that it has none.
 if command -v cygpath >/dev/null 2>&1; then
   repo_root="$(cygpath -w "$repo_root")"
   cargo_home="$(cygpath -w "$cargo_home")"

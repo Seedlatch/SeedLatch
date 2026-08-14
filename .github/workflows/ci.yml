@@ -83,6 +83,19 @@ jobs:
           fi
           echo "checked $seen commits; all UTC apart from the one recorded exception"
 
+      - name: No personal identifiers in any tracked file
+        # Replaces a pile of ad-hoc greps. Six of those were wrong at various points and
+        # every one of them failed by reporting clean — a shell-quoting mistake that matched
+        # every line, a trailing backslash that made grep error while the script printed a
+        # reassuring zero, a drive-letter pattern that fired inside every https URL.
+        # A scanner whose failure mode is silence looks exactly like a clean repository.
+        #
+        # So the patterns carry their own positives and negatives and run them before reading
+        # anything; a broken pattern aborts instead of sweeping the tree and finding nothing.
+        # Output is file names and counts only — the match is the thing that must not appear
+        # in a public log. Invariant 7, rule 2.
+        run: git ls-files -z | xargs -0 node scripts/check-identifiers.mjs
+
       - name: Verify vendored data and fixtures against published hashes
         run: |
           (cd data && sha256sum -c SHA256SUMS)
