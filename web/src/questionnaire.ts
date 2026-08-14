@@ -45,7 +45,10 @@ export interface Questionnaire {
 
 export type ValidationError =
   | { readonly field: 'deviceCount'; readonly reason: 'out_of_range' | 'not_an_integer' }
-  | { readonly field: 'vendors'; readonly reason: 'unknown_vendor' };
+  | {
+      readonly field: 'vendors';
+      readonly reason: 'unknown_vendor' | 'none_selected' | 'more_vendors_than_devices';
+    };
 
 export type Validated<T> =
   | { readonly ok: true; readonly value: T }
@@ -84,6 +87,24 @@ export function passphraseCountsAsMitigation(answer: PassphraseAnswer): boolean 
  *
  * Out-of-range device counts are **rejected, not clamped**. Clamping silently changes the
  * user's answer, and the answer feeds a report they may act on.
+ *
+ * # Why the vendor rules are stricter than "is it in the list"
+ *
+ * §5 derives tiers partly from **vendor diversity** — how many independent manufacturers
+ * would have to be wrong at once. Every rule below exists because breaking it inflates that
+ * number, and an inflated diversity assigns a *less* severe tier. That is the direction that
+ * costs coins: a false negative is what stops someone migrating.
+ *
+ * - **Duplicates are collapsed before anything counts them.** `[ledger, ledger]` is one
+ *   manufacturer, and counting it as two claims an independence that is not there.
+ * - **An empty selection is refused, not treated as zero.** A wallet has devices; a blank
+ *   answer is an unanswered question, and letting it through would feed a diversity of zero
+ *   into a tier calculation as though it were a measurement.
+ * - **More distinct vendors than devices is refused.** It cannot be true — each device has
+ *   one manufacturer — so it is a mis-click or a malformed submission, and the safe reading
+ *   of an impossible answer is to ask again rather than to pick an interpretation.
+ *
+ * These are input rules. They do not change what any tier means.
  */
 export function validate(input: {
   deviceCount: number;
@@ -92,15 +113,32 @@ export function validate(input: {
 }): Validated<Questionnaire> {
   const errors: ValidationError[] = [];
 
+  const countIsUsable =
+    Number.isInteger(input.deviceCount) &&
+    input.deviceCount >= MIN_DEVICES &&
+    input.deviceCount <= MAX_DEVICES;
+
   if (!Number.isInteger(input.deviceCount)) {
     errors.push({ field: 'deviceCount', reason: 'not_an_integer' });
-  } else if (input.deviceCount < MIN_DEVICES || input.deviceCount > MAX_DEVICES) {
+  } else if (!countIsUsable) {
     errors.push({ field: 'deviceCount', reason: 'out_of_range' });
   }
 
   const known = new Set<string>(VENDORS);
   if (input.vendors.some((vendor) => !known.has(vendor))) {
     errors.push({ field: 'vendors', reason: 'unknown_vendor' });
+  }
+
+  // Collapse first, then judge. Every check below is about distinct manufacturers, and a
+  // repeated selection is one manufacturer however many times it was clicked.
+  const distinct = [...new Set(input.vendors)] as readonly Vendor[];
+
+  if (distinct.length === 0) {
+    errors.push({ field: 'vendors', reason: 'none_selected' });
+  } else if (countIsUsable && distinct.length > input.deviceCount) {
+    // Only meaningful against a usable count; otherwise this would pile a second complaint
+    // onto an answer whose first problem is that the count is not a number.
+    errors.push({ field: 'vendors', reason: 'more_vendors_than_devices' });
   }
 
   if (errors.length > 0) {
@@ -111,7 +149,9 @@ export function validate(input: {
     ok: true,
     value: {
       deviceCount: input.deviceCount,
-      vendors: input.vendors as readonly Vendor[],
+      // The de-duplicated list, not the raw one. Anything downstream counting these is
+      // counting manufacturers, and it should not have to know to collapse them itself.
+      vendors: distinct,
       passphrase: input.passphrase,
     },
   };

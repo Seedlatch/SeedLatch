@@ -78,11 +78,28 @@ Implementation deferred until the frontend toolchain is settled; the semantics a
 | Field | Control | Semantics |
 |---|---|---|
 | Device count | Bounded integer, 1–20 | **Reject out-of-range, do not clamp.** Clamping silently changes the user's answer, and the answer feeds a report they may act on. |
-| Vendors used | Fixed multi-select | **No "other" with a text box.** That reintroduces exactly the field eliminated in §3.1. If "other" exists it is a checkbox with no accompanying input. |
+| Vendors used | Fixed multi-select | **No "other" with a text box.** That reintroduces exactly the field eliminated in §3.1. If "other" exists it is a checkbox with no accompanying input. **Duplicates are collapsed before anything counts them; an empty selection is refused; more distinct vendors than devices is refused.** See below. |
 | Passphrase in use | yes / no / unsure | **`unsure` takes the same branch as `no`.** Per §5's more-severe-tier rule: an unverified passphrase cannot be counted as mitigation. The UI must state this — "we treat 'unsure' the same as 'no'" — rather than leaving the user to guess what their answer did. |
 | Dice entropy | **Not collected in v0** | See §3.3. |
 
 An option whose semantics are not written down gets implemented three different ways.
+
+**The vendor rules exist because §5 derives tiers partly from vendor diversity** — how many
+independent manufacturers would have to be wrong at once. Each rule blocks a way of
+inflating that number, and an inflated diversity assigns a *less* severe tier, which is the
+direction that costs coins.
+
+- `[ledger, ledger]` is one manufacturer. Counting it as two claims an independence that is
+  not there.
+- An empty selection is an unanswered question, not a diversity of zero. Feeding it into a
+  tier calculation would treat a blank as a measurement.
+- More distinct vendors than devices cannot be true, since each device has one manufacturer.
+  The safe reading of an impossible answer is to ask again rather than to pick an
+  interpretation of it.
+
+These are input rules and they change no tier's meaning. Validation rejects rather than
+corrects, for the same reason device count is rejected rather than clamped: silently
+repairing an answer changes what the user said, and they may act on the result.
 
 ### 3.3 Dice entropy is not collected in v0
 
