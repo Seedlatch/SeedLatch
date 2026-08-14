@@ -155,6 +155,15 @@ pub enum DeriveError {
     /// The descriptor has no wildcard, so it describes exactly one address and there is
     /// nothing to enumerate.
     NotEnumerable,
+    /// The descriptor does not describe the requested chain.
+    ///
+    /// `wpkh(xpub/0/*)` covers one chain. `wpkh(xpub/<0;1>/*)` covers two. Asking a
+    /// single-path descriptor for its change chain has no answer, and **substituting the one
+    /// it does have is the dangerous option**: the caller would scan the same chain twice,
+    /// double the requests against a rate-limited endpoint, and report change as checked
+    /// when it was never looked at. A missed balance that looks examined is worse than a
+    /// refusal that says so.
+    ChainNotInDescriptor,
     /// The descriptor cannot be turned into an address — a `bare(...)` script has no
     /// address form.
     NoAddressForm,
@@ -169,6 +178,7 @@ impl DeriveError {
         match self {
             Self::MultisigKeyAlone => "multisig_key_alone",
             Self::NotEnumerable => "not_enumerable",
+            Self::ChainNotInDescriptor => "chain_not_in_descriptor",
             Self::NoAddressForm => "no_address_form",
             Self::IndexOutOfRange => "index_out_of_range",
             Self::Underivable => "underivable",
@@ -186,6 +196,9 @@ impl fmt::Display for DeriveError {
             Self::NotEnumerable => {
                 f.write_str("that describes a single address, so there is nothing to scan")
             }
+            Self::ChainNotInDescriptor => f.write_str(
+                "that descriptor covers only one chain, so there is no change chain to scan",
+            ),
             Self::NoAddressForm => f.write_str("that script has no address form"),
             Self::IndexOutOfRange => f.write_str("that address index is out of range"),
             Self::Underivable => f.write_str("addresses could not be derived from that"),
@@ -201,7 +214,13 @@ impl std::error::Error for DeriveError {}
 /// obvious mistake: it is expensive, and in a 32-bit WASM heap it is expensive in the
 /// dimension that runs out first.
 pub struct AddressPlan {
-    descriptor: Descriptor<DescriptorPublicKey>,
+    /// One entry per chain the descriptor covers, expanded **once** at construction.
+    ///
+    /// A multipath `<0;1>` descriptor expands to two; a single-path one to a single entry.
+    /// Expanding per address meant cloning the descriptor and re-expanding it on every
+    /// lookup — forty times for one empty wallet, and in a 32-bit WASM heap that is churn in
+    /// the dimension that runs out first.
+    paths: Vec<Descriptor<DescriptorPublicKey>>,
     network: Network,
     secp: Secp256k1<VerifyOnly>,
 }
@@ -224,7 +243,7 @@ impl AddressPlan {
             return Err(DeriveError::NotEnumerable);
         }
         Ok(Self {
-            descriptor: parsed.as_descriptor().clone(),
+            paths: expand(parsed.as_descriptor())?,
             network: facts.network.network(),
             secp: Secp256k1::verification_only(),
         })
@@ -254,30 +273,23 @@ impl AddressPlan {
             .map_err(|_| DeriveError::Underivable)?;
 
         Ok(Self {
-            descriptor,
+            paths: expand(&descriptor)?,
             network: key.network().network(),
             secp: Secp256k1::verification_only(),
         })
     }
 
     /// The address at a position, or why there isn't one.
+    ///
+    /// A chain the descriptor does not cover is [`DeriveError::ChainNotInDescriptor`], never
+    /// a substitution. An earlier version returned the only path it had whenever there was
+    /// just one, so `wpkh(xpub/0/*)` answered both chains with the same address — the
+    /// scanner would have queried it twice and reported change as checked without looking.
     pub fn address(&self, chain: Chain, index: u32) -> Result<Address, DeriveError> {
-        let single = self
-            .descriptor
-            .clone()
-            .into_single_descriptors()
-            .map_err(|_| DeriveError::Underivable)?;
-
-        // A multipath descriptor expands to one descriptor per chain, in order. A
-        // single-path one has just the entry it was written with, and asking it for the
-        // change chain is a caller error rather than something to silently substitute.
-        let chosen = if single.len() > 1 {
-            single
-                .get(chain.index() as usize)
-                .ok_or(DeriveError::Underivable)?
-        } else {
-            single.first().ok_or(DeriveError::Underivable)?
-        };
+        let chosen = self
+            .paths
+            .get(chain.index() as usize)
+            .ok_or(DeriveError::ChainNotInDescriptor)?;
 
         chosen
             .at_derivation_index(index)
@@ -288,12 +300,35 @@ impl AddressPlan {
     }
 
     /// How many chains this plan covers. A single-path descriptor covers one.
+    ///
+    /// A caller scanning "both chains" must read this rather than assuming two: for a
+    /// one-chain descriptor there is no change chain to scan, and [`Self::address`] will say
+    /// so rather than answering with the chain it does have.
     pub fn chain_count(&self) -> usize {
-        self.descriptor
-            .clone()
-            .into_single_descriptors()
-            .map_or(1, |v| v.len())
+        self.paths.len()
     }
+
+    /// The chains this plan can actually produce addresses for.
+    pub fn chains(&self) -> impl Iterator<Item = Chain> + '_ {
+        Chain::BOTH
+            .into_iter()
+            .take(self.paths.len().min(Chain::BOTH.len()))
+    }
+}
+
+/// Expand a descriptor into one entry per chain, once.
+fn expand(
+    descriptor: &Descriptor<DescriptorPublicKey>,
+) -> Result<Vec<Descriptor<DescriptorPublicKey>>, DeriveError> {
+    let paths = descriptor
+        .clone()
+        .into_single_descriptors()
+        .map_err(|_| DeriveError::Underivable)?;
+
+    if paths.is_empty() {
+        return Err(DeriveError::Underivable);
+    }
+    Ok(paths)
 }
 
 /// The gap-limit policy, as a state machine with no network in it.
@@ -346,7 +381,19 @@ impl GapScan {
             return None;
         }
 
-        let batch = (self.next, BATCH_SIZE.min(remaining));
+        // Ask for exactly what could still close the gap, never a fixed twenty.
+        //
+        // A fixed batch overshoots: with one used address at index 0, the gap closes at 21,
+        // and a second full round examined 40 — nineteen requests that could not change any
+        // outcome. Two chains and several candidate script types multiply that into roughly
+        // a hundred and fifty needless requests against someone else's server.
+        //
+        // `GAP_LIMIT - unused_run` is the smallest number that could possibly end the scan.
+        // If any of them turn out to be used the run resets and the next round asks again,
+        // so the request count is minimal and the number of rounds is bounded by the number
+        // of used addresses rather than by the range.
+        let needed = GAP_LIMIT.saturating_sub(self.unused_run).max(1);
+        let batch = (self.next, needed.min(BATCH_SIZE).min(remaining));
         self.issued = Some(batch);
         Some(batch)
     }
@@ -362,13 +409,12 @@ impl GapScan {
         };
 
         let covered = used.len().min(count as usize);
-        for (offset, &is_used) in used.iter().take(covered).enumerate() {
+        for &is_used in used.iter().take(covered) {
             if is_used {
                 self.unused_run = 0;
             } else {
                 self.unused_run += 1;
             }
-            let _ = offset;
         }
 
         self.next = start.saturating_add(u32::try_from(covered).unwrap_or(u32::MAX).min(count));

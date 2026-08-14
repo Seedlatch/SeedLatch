@@ -184,8 +184,12 @@ fn a_used_address_resets_the_run() {
     // not GAP_LIMIT from the start.
     let scan = run(|i| i == 0);
     assert!(scan.is_complete());
-    assert_eq!(scan.examined(), GAP_LIMIT + BATCH_SIZE.min(GAP_LIMIT));
-    assert!(scan.examined() > GAP_LIMIT);
+    // The gap closes GAP_LIMIT past the last used address, and not one request later.
+    assert_eq!(
+        scan.examined(),
+        1 + GAP_LIMIT,
+        "no overshoot past what closes the gap"
+    );
 }
 
 #[test]
@@ -239,4 +243,67 @@ fn recording_without_an_outstanding_batch_changes_nothing() {
     scan.record(&[true; 10]);
     assert_eq!(scan.examined(), 0);
     assert!(!scan.is_complete());
+}
+
+#[test]
+fn a_single_path_descriptor_refuses_the_chain_it_does_not_cover() {
+    // Regression. This returned the receive address for BOTH chains, silently, so a scanner
+    // would have queried the same chain twice and reported change as checked without ever
+    // looking at it. A missed balance that looks examined is the worst shape of wrong.
+    let (xpub, _, _) = vectors()[0];
+    let text = format!("wpkh({xpub}/0/*)");
+    let accepted = guard_input(&text).expect("no secret material");
+    let parsed = parse_descriptor(&accepted).expect("parses");
+    let plan = AddressPlan::from_descriptor(&parsed).expect("plan");
+
+    assert_eq!(plan.chain_count(), 1, "one path written, one chain covered");
+    assert!(plan.address(Chain::External, 0).is_ok());
+    assert_eq!(
+        plan.address(Chain::Internal, 0).err(),
+        Some(DeriveError::ChainNotInDescriptor),
+        "the chain it does not cover must be refused, not substituted"
+    );
+}
+
+#[test]
+fn a_multipath_descriptor_covers_both_chains_with_different_addresses() {
+    let (xpub, _, _) = vectors()[0];
+    let text = format!("wpkh({xpub}/<0;1>/*)");
+    let accepted = guard_input(&text).expect("no secret material");
+    let parsed = parse_descriptor(&accepted).expect("parses");
+    let plan = AddressPlan::from_descriptor(&parsed).expect("plan");
+
+    assert_eq!(plan.chain_count(), 2);
+    let external = plan.address(Chain::External, 0).expect("external");
+    let internal = plan.address(Chain::Internal, 0).expect("internal");
+    assert_ne!(external, internal);
+}
+
+#[test]
+fn chains_reports_only_what_can_actually_be_scanned() {
+    // A caller iterating chains() cannot ask for a chain that does not exist, which is the
+    // structural version of the bug above.
+    let (xpub, path, _) = vectors()[0];
+
+    let single_text = format!("wpkh({xpub}/0/*)");
+    let accepted = guard_input(&single_text).expect("clean");
+    let parsed = parse_descriptor(&accepted).expect("parses");
+    let single = AddressPlan::from_descriptor(&parsed).expect("plan");
+    assert_eq!(single.chains().count(), 1);
+
+    let from_key = plan_for(xpub, script_for(path));
+    assert_eq!(
+        from_key.chains().count(),
+        2,
+        "a bare key covers both chains"
+    );
+
+    for plan in [&single, &from_key] {
+        for chain in plan.chains() {
+            assert!(
+                plan.address(chain, 0).is_ok(),
+                "every chain reported must be derivable"
+            );
+        }
+    }
 }

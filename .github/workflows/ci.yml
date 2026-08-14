@@ -275,6 +275,12 @@ jobs:
         working-directory: web
         run: npm run smoke
 
+      - name: No absolute paths in the shipped bundles
+        # The bundles are what a browser actually downloads, and until now neither gate
+        # covered them: the artefact check took web/pkg only, and the sourcemap check takes
+        # .map files only. A path baked into dist/*.js by any build tool would have shipped.
+        run: node scripts/check-artifact-paths.mjs dist/*.js
+
       - name: Sourcemap paths must stay repo-relative
         # An absolute --outfile makes esbuild bake the builder's directory layout into
         # `sources`, which leaks it and makes the .map differ byte-for-byte between
