@@ -311,7 +311,62 @@ Vendored data is pinned by SHA-256 *and* re-derived from properties BIP-39 state
 independently, so a substituted list fails even if someone updates the recorded hash.
 See `data/PROVENANCE.md`.
 
-## 6. Not yet done
+## 6. The one outbound call, and the one host it may reach
+
+**Decided. The compile-time allowlist holds exactly one entry: `blockstream.info`.**
+
+### Why one and not several
+
+Every host in the allowlist is a party this tool vouches for. Offering a menu does not
+distribute that trust, it multiplies it: each additional entry is another operator we are
+telling users is acceptable, and the user has no basis on which to choose between them. They
+cannot audit any of the operators, and picking from a list they cannot evaluate is not
+consent, it is the appearance of it.
+
+So: one default, disclosed honestly, plus a documented self-hosting path. **Self-hosting is
+the actual answer to the privacy problem** — endpoint variety is not, and presenting variety
+as though it were would be the more misleading option.
+
+### What was checked before recording it
+
+**Maintainer.** Esplora is maintained by Blockstream, MIT licensed, and is an original
+project rather than a fork. Note that this makes Blockstream a single party in two roles: the
+author of the software and the operator of the public instance. Choosing this endpoint vouches
+for both at once, which is a reason to state it plainly rather than a reason to add a second
+host.
+
+**Published rate limits: there are none.** The figure that circulates — roughly 50 requests
+per second, 100 burst — is a user's reading of an nginx configuration, posted in an issue that
+is open and unanswered by maintainers. Blockstream separately sells a managed Explorer API with
+keys and quotas, which implies the free public instance is best-effort with no commitment
+behind it. Real 429 responses are reported against it.
+
+So the number this design is weighed against is not a promise. Treat 429 as an expected
+response rather than an error condition, back off, and let the user cancel.
+
+### The volume this design actually generates
+
+**Esplora has no bulk address endpoint.** `/address/:address` takes exactly one address —
+checked against its published API, not assumed. So a "batch" in `src/derive/` is a batch of
+*decisions*, not of requests, and the request count is one per address examined.
+
+For an empty wallet that is 20 requests per chain and 40 for both. A wallet with history costs
+the gap limit past its last used address on each chain. **A bare `xpub` multiplies this**: its
+script type is ambiguous, so a scan that covers the candidate single-signature types issues
+that 40 once per candidate.
+
+That is well inside an unpublished ~50/s for one browser on one connection, provided
+concurrency is capped and the scan is paced. It is not inside anything if concurrency is
+unbounded, which is why `CLAUDE.md` requires a cap, progress, and cancellation rather than
+leaving them to judgement.
+
+### What this does not fix
+
+The endpoint operator learns which addresses were asked about, and therefore the wallet. No
+allowlist entry changes that; only self-hosting does. The disclosure shown before the first
+lookup says so in those terms, and it must not be softened into a reassurance.
+
+## 7. Not yet done
 
 - Independent review of derivation and classification logic. Blocks public launch.
 - Legal review of the disclaimer and liability language shown to users.

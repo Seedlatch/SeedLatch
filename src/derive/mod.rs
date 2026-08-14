@@ -41,11 +41,17 @@ use crate::parse::extended_key::{ExtendedKey, ScriptType};
 /// scan against a public instance is the thing the limit exists to prevent.
 pub const GAP_LIMIT: u32 = 20;
 
-/// Indices requested per round.
+/// Indices resolved per round.
 ///
-/// Matches the gap limit so a scan that finds nothing completes in a single round trip
-/// rather than twenty. `CLAUDE.md` requires batching for the same reason it requires the
-/// limit: volume against a public endpoint is somebody else's cost.
+/// **A round is not one request.** Esplora has no bulk address endpoint — `/address/:address`
+/// takes exactly one address, verified against its published API — so a round of twenty is
+/// twenty HTTP requests. What batching buys is deciding *once* whether to continue, rather
+/// than issuing one request, waiting, and deciding twenty times; an empty chain is then one
+/// round of twenty parallel-capped requests instead of twenty sequential round trips.
+///
+/// An earlier version of this note claimed a round was a single round trip. It is not, and
+/// the difference matters: it is the number that has to be weighed against the endpoint's
+/// capacity, and it is twenty times larger than that claim implied.
 pub const BATCH_SIZE: u32 = GAP_LIMIT;
 
 /// Hard ceiling on addresses examined per chain, whatever the gap says.
