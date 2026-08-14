@@ -31,7 +31,8 @@
 // `CLAUDE.md` invariant 7, rule 2.
 
 import { readFileSync } from 'node:fs';
-import { relative, isAbsolute, basename } from 'node:path';
+import { relative, isAbsolute, basename, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * How a file is named in output.
@@ -133,7 +134,25 @@ if (files.length === 0) {
 let filesWithHits = 0;
 let totalHits = 0;
 
+// This file necessarily contains what it hunts for: the planted positives above are
+// identifier-shaped by construction, which is what makes them positives. Scanning itself
+// would report five patterns' worth of matches on every run, and a gate that always fails
+// gets switched off.
+//
+// Self-exclusion rather than a filter in the workflow, so the exception travels with the
+// thing it applies to and cannot be widened by editing a glob somewhere else. It is exactly
+// one file, matched by resolved path rather than by name.
+//
+// The cost is that this file is not scanned, so a real identifier could hide in it. Two
+// things bound that: it is short enough to read, and every sample in it is visibly synthetic
+// — `somebody`, `builder`, `example.com`. If it ever grows past reading in one sitting, the
+// answer is to assemble the samples from fragments at runtime so no identifier-shaped string
+// appears in the source, and drop this exclusion.
+const selfPath = fileURLToPath(import.meta.url);
+
 for (const file of files) {
+  if (resolve(file) === selfPath) continue;
+
   let text;
   try {
     text = readFileSync(file, 'utf8');
