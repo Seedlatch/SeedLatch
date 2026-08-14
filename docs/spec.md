@@ -395,6 +395,28 @@ support, and quietly reinterpreting the input contradicts that more than a refus
 The `{reason note}` above solves the real dead end — the single-key case, which is the common
 one — without diverging from the standard.
 
+### 6.2 The endpoint disclosure — copy pending
+
+Shown **before the first lookup**, not after. It asks permission rather than telling the user
+something, so it has two buttons where the refusal screens have one: declining has to be a
+choice on the screen, not "close the tab". The structural report works without any lookup.
+
+**The default endpoint is `blockstream.info`, and the operator is named in the copy.** The
+decision and its reasoning are in `docs/security-model.md` §6 — one host, because every entry
+in the allowlist is a party this tool vouches for and a menu multiplies that rather than
+distributing it.
+
+**Blockstream occupies two roles at once: it authors Esplora and it operates the instance we
+default to.** The right response is to say so plainly, not to add a second host. A second host
+would not reduce the concentration, it would add a second party to vouch for while implying
+the choice between them means something the user can evaluate. Naming the operator is what
+makes the disclosure as honest as the decision behind it.
+
+Copy is drafted and approved apart from one paragraph, which promised a self-hosting document
+and a local-endpoint path that do not exist yet. **A screen about honesty must not point at a
+file that is not there**, so either both are built first or that paragraph describes only what
+works today. Nothing ships until that is resolved.
+
 #### `{category}` substitutions
 
 Rendered from `SecretMaterial::label()` in `src/parse/mod.rs`. Multiple categories join
